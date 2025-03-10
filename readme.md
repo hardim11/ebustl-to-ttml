@@ -6,7 +6,7 @@ This is some code to convert EBU STL subtitle files used primarily in Broadcast 
 EBU STL files are used to store the raw subtitle lines ("Cues") with a timecode of when to show them. They are generally "played out" alongside the video playback and are generally formatted for presentation on Teletext subtitle systems. This means that the authoring of the EBU STLs files will assume a display area and attributes, such as line and column limits, that the font is monospaced and that subtitles are actually shown using 2 Teletext lines ("Double Height").
 
 ## Why?
-I was working on a project which required conversion of EBU STL files to TTML for OTT but we were experiencing some complications with the commercial software that we were using. We are still using the commercial software but this project helped me understand the standards better and learn what to look for. The journey being more important than arriving! As I spent time on the project I thought I would share my awful code for others.
+I was working on a project which required conversion of EBU STL files to TTML for OTT but we were experiencing some complications with the commercial software that we were using. We are still using the commercial software but this project helped me understand the standards better and learn what to look for. The journey being more important than arriving! As I spent (personal not work) time on the project I thought I would share my awful code for others.
 
 I had a lot of help from our Accessibility department which I very much appreciate.
 
@@ -23,6 +23,20 @@ I hope I have credited all code and standards source but apologies for any I mis
 
 ## Challenges
 The greatest challenge I found was maintaining positioning. STLs offer 3 horizontal positions - left justified, centre justified and right justified - but it also offers unjustified ("unchanged presentation"). This latter mode is often used with space padding between lines to provide more complex positioning. The only method I have found to support this, without breaking up the individual subtitle "cues" into lots of regions, is to use the `xml:space="preserve"` attribute but I am not convinced of how widely this is supported between players.
+
+For example, with the following Cue,
+
+![Starfish Application Viewer](docs/justification_none_stl.png "Jusitifed None Example Subtitle")
+
+I've rendered this using preserved space to look like this (in the excellent [IMSC1 Renderer](https://www.sandflow.com/imsc1_1/) )
+
+![IMSC1 Renderer](docs/justification_none_ttml.png "Jusitifed None Example Subtitle")
+
+using the XML block
+
+```
+<p begin="10:03:52.280" end="10:03:54.760" region="region.1.2.1.25" tts:fontSize="200%" tts:lineHeight="120%" tts:textAlign="left"><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">     </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> SHEEP BAA </span> <br /><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">            </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> Oh, for... </span> </p>
+```
 
 Additionally, I really struggled with how to parse the control characters, the EBU STL format uses a collection of control characters to format the Cues (e.g. to change the colour) but also to provided accented characters. This, coupled with the "Double Height" of teletext subtitles did mean I used some assumptions, which I hope are valid.
 
@@ -44,7 +58,7 @@ A very basic command line app is included in ./cmd/stl-to-ttlml
 ### Single File
 convert a single suppied file to TTML e.g. (when compiled)
 
-    ./stl-to-ttml subs_test_with_audio_v1.stl subs_test_with_audio_v1.ttml
+    stl-to-ttml subs_test_with_audio_v1.stl subs_test_with_audio_v1.ttml
 
 
 ### Folder once or continuously
@@ -59,12 +73,8 @@ If you wish to leave the process running and scan every "x" number of seconds, y
 Note that for folder scans, only files with a `.stl` extension will be picked up. I haven't put much error handling and so the continuous scan may not be reliable if it hits an issue with a file.
 
 
-## Improvements, Errors
-As always, please feel free to amend, update, correct!
-
-
 ## Limitations
-* Control code 0x08 (Flash) and 0x09 (Steady (1,2)) are not supported, warning will be written to STDOUT but processing will continue - EBU recommendation "This code is technically valid in an STL TTI block, but would not be expected to be used." although I did find it in a production sample file
+* Control codes 0x08 (Flash) and 0x09 (Steady (1,2)) are not supported, a warning will be written to STDOUT but processing will continue - EBU recommendation "This code is technically valid in an STL TTI block, but would not be expected to be used.", although I did find it in a production sample file.
 
 
 ## Issues
@@ -79,3 +89,9 @@ As always, please feel free to amend, update, correct!
 * ~~add folder mode + watch~~
 * add editor mode for stitch and also split
 
+## Credits
+* as well are copying and editing [Quentin Renard's go-astisub project](https://github.com/asticode/go-astisub)
+* I used [Benoît Amiaux's iobit package](https://github.com/bamiaux/iobit) to parse the EBU STL file
+
+## Improvements, Errors
+As always, please feel free to amend, update, correct!

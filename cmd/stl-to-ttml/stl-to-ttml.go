@@ -172,6 +172,7 @@ func main() {
 	flag.IntVar(&continuousScanInterval, "interval", 0, "If set for folder mode, folder poll with sleep this number of seconds between scans")
 	flag.Parse()
 
+	// switch based upon operation mode selected
 	switch mode {
 	case "single":
 		if len(flag.Args()) != 2 {
@@ -217,5 +218,4 @@ func main() {
 	default:
 		fmt.Println("Unknown mode")
 	}
-
 }
