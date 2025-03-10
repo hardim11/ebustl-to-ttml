@@ -63,8 +63,12 @@ Note that for folder scans, only files with a `.stl` extension will be picked up
 As always, please feel free to amend, update, correct!
 
 
+## Limitations
+* Control code 0x08 (Flash) and 0x09 (Steady (1,2)) are not supported, warning will be written to STDOUT but processing will continue - EBU recommendation "This code is technically valid in an STL TTI block, but would not be expected to be used." although I did find it in a production sample file
+
+
 ## Issues
-* only 25 fps
+* only supports 25 fps
 * ~~Accented chars~~
 * ~~leading and trailing empty box missing~~
 * make settings more configurable
@@ -72,6 +76,6 @@ As always, please feel free to amend, update, correct!
 * create other variants of TTML.
 * only a couple of code pages supported in Cues (and only 850 for the header "GSI" section)
 * review how the Cues are processed, it's very messy right now
-* add folder mode + watch
-* maybe add editor mode
+* ~~add folder mode + watch~~
+* add editor mode for stitch and also split
 

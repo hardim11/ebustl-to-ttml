@@ -33,7 +33,7 @@ func ProcessAfile(sourcefilepath string, outputfilepath string, offsetSeconds in
 	fmt.Printf("number of ttis = %d\n", len(stl.Ttis))
 	fmt.Printf("number of subtitles = %d\n", stl.Gsi.TotalNumberTtiBlocksInt)
 	currentTime := time.Now()
-	comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\n at " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
+	comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
 
 	config := ttmlgenerate.TtmlConvertConfigurationDefault()
 	config.PreserveSpaces = true

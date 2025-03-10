@@ -5,6 +5,7 @@ type TtmlConvertConfiguration struct {
 	AddId          bool
 	ShuffleTimes   bool
 	Debug          bool
+	CellRsolution  string
 }
 
 func TtmlConvertConfigurationDefault() TtmlConvertConfiguration {
@@ -13,5 +14,6 @@ func TtmlConvertConfigurationDefault() TtmlConvertConfiguration {
 		AddId:          false,
 		ShuffleTimes:   false,
 		Debug:          false,
+		CellRsolution:  "40 24",
 	}
 }

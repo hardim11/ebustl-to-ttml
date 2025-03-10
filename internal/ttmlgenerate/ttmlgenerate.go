@@ -93,7 +93,10 @@ func GetAccentedChar(diacritical byte, letter byte) (string, error) {
 
 	// this seem wrong but maybe works?
 	quote := fmt.Sprintf(`"%c\u%04x"`, letter, unicode_diacritical)
-	res, _ := strconv.Unquote(quote)
+	res, err := strconv.Unquote(quote)
+	if err != nil {
+		return "", err
+	}
 
 	if configuration.Debug {
 		fmt.Println("GetAccentedChar I came up with '" + res + "'")
@@ -101,7 +104,7 @@ func GetAccentedChar(diacritical byte, letter byte) (string, error) {
 	return res, nil
 }
 
-func (r *RegionStruct) DecodeString(RegionId string) {
+func (r *RegionStruct) DecodeRegionNameString(RegionId string) {
 	// we are using the region name to communicate the position using "." to split parameters
 	// this decodes that and updates the region struct values
 
@@ -283,7 +286,7 @@ func getTtmlRegions(region_id string) TTMLOutRegion {
 	*/
 
 	var regiondata RegionStruct
-	regiondata.DecodeString(region_id)
+	regiondata.DecodeRegionNameString(region_id)
 
 	origin_x := float64(regiondata.LeftPad) * 2.5
 	origin_y := float64(regiondata.LineNumber-1) * 4.165
@@ -363,7 +366,7 @@ func getLeadingSpaces(input string) (span string, remaining string) {
 
 func getNextChar(inputtrimmed []byte, pos int) byte {
 	// creeps forward on the array but protects against running over the end I hope
-	if pos >= len(inputtrimmed) {
+	if pos >= (len(inputtrimmed) - 1) {
 		return 0
 	}
 	return inputtrimmed[pos+1]
@@ -490,8 +493,10 @@ func reformatLine(input string, codepage string, fixedalignment bool) (string, e
 				if configuration.Debug {
 					res = res + "<!-- surpessing 0x1c - Black background (1,2)  -->"
 				}
+			} else if (bt == 0x09) || (bt == 0x08) {
+				fmt.Println("WARN: Flash is not supported so ignoring control code [" + hex.EncodeToString([]byte{bt}) + "] ")
 			} else {
-				fmt.Println("unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
+				fmt.Println("ERROR: unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
 				return "", errors.New("ttmlgenerate.reformatLine raised unhandled error - unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
 			}
 		} else {
@@ -535,7 +540,7 @@ func getTextField(b []byte) string {
 	// I think this is fixed now, can remove?
 	if i < 0 {
 		//fmt.Println(hex.EncodeToString(b))
-		fmt.Println("WARNING no 0x8f found so assume end of line")
+		fmt.Println("WARN: no 0x8f found so assume end of line")
 		return tmp[:]
 	}
 	return tmp[:i]
@@ -544,7 +549,6 @@ func getTextField(b []byte) string {
 func isPrintableChar(achar rune) bool {
 	// ref tech3264.pdf
 	// section 5 character code tables
-
 	if (achar >= 0x20) && (achar <= 0x7f) {
 		// valid char
 		return true
@@ -613,7 +617,6 @@ func getSubtitlePara(tti ebustl.Tti, codepage string, fixedalignment bool) (stri
 		unused space in the Text Field will be set to 8Fh.
 	*/
 	// get raw TextField until 0x8F
-	//fmt.Println(">>> " + tti.TimeCodeInRendered)
 	textfield := getTextField(tti.ExtendedTextField[:])
 
 	// deduplicate some codes if double height
@@ -625,8 +628,6 @@ func getSubtitlePara(tti ebustl.Tti, codepage string, fixedalignment bool) (stri
 		textfield = strings.Replace(textfield, "\x0a\x0a", "\x0a", -1)
 		// change STL CR to 1
 		textfield = strings.Replace(textfield, "\x8a\x8a", "\x8a", -1)
-		// // remove the \x0d
-		// textfield = strings.Replace(textfield, "\x0d", "", -1)
 	}
 
 	// we need to split into rows
@@ -805,7 +806,6 @@ func secondsToTc(seconds int64) string {
 }
 
 func (t *TTMLOut) debugShuffleTimeCodes() {
-
 	shuffle_spacing := 2
 	seconds := shuffle_spacing
 	for idx := range t.Body.Div.Subtitles {
@@ -829,11 +829,9 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	if (stlmerged.Gsi.CharacterCodeTable != "00") && (stlmerged.Gsi.CharacterCodeTable != "01") {
 		return "", errors.New("only Latin code table (00), Latin/Cyrillic (01) is supported, code table ID " + stlmerged.Gsi.CharacterCodeTable + " specified")
 	}
-
 	if (stlmerged.Gsi.DisplayStandardCode != '1') && (stlmerged.Gsi.DisplayStandardCode != '2') {
 		return "", errors.New("only Level 1 and Level 2 Teletext supported, " + string(stlmerged.Gsi.DisplayStandardCode) + " specified")
 	}
-
 	if stlmerged.Gsi.DiskFormatCode != "STL25.01" {
 		return "", errors.New("only 25fps supported")
 	}
@@ -852,8 +850,8 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	res.XMLNamespaceITTP = "http://www.w3.org/ns/ttml/profile/imsc1#parameter"
 	//res.XMLNamespaceEbuTt = "urn:ebu:tt:style"
 
-	res.Lang = "en"
-	res.CellRsolution = "40 24"
+	res.Lang = getxmlLanguageCode(stl.Gsi.LanguageCode)
+	res.CellRsolution = configuration.CellRsolution
 
 	res.Head.Metadata = &TTMLOutMetadata{}
 	res.Head.Metadata.Title = stlmerged.Gsi.OriginalProgrammeTitle
@@ -863,7 +861,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	res.Head.Styles = append(res.Head.Styles, fixedStyles[:]...)
 
 	res.Head.Regions = []TTMLOutRegion{}
-	res.Head.Regions = append(res.Head.Regions, getTtmlDefaultRegions(true)...)
+	res.Head.Regions = append(res.Head.Regions, getTtmlDefaultRegions(configuration.Debug)...)
 
 	res.Body.Style = "ttmlStyle"
 
@@ -883,7 +881,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 			// kludge way to have unique region slice
 			regions[region] = true
 		} else {
-			fmt.Printf("Skipping a comment cue - ID %s \n", aTti.TimeCodeInRendered)
+			fmt.Printf("INFO: Skipping a comment cue - ID %s \n", aTti.TimeCodeInRendered)
 		}
 	}
 
