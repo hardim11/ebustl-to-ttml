@@ -1,4 +1,4 @@
-# EBU STL to TTML convertor
+# EBU STL Subtitle File to TTML convertor
 
 ## What is this?
 This is some code to convert EBU STL subtitle files used primarily in Broadcast into [TTML](https://en.wikipedia.org/wiki/Timed_Text_Markup_Language) XML files used also within Broadcast but also in OTT. 
