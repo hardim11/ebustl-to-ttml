@@ -38,7 +38,7 @@ using the XML block
 <p begin="10:03:52.280" end="10:03:54.760" region="region.1.2.1.25" tts:fontSize="200%" tts:lineHeight="120%" tts:textAlign="left"><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">     </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> SHEEP BAA </span> <br /><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">            </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> Oh, for... </span> </p>
 ```
 
-Additionally, I really struggled with how to parse the control characters, the EBU STL format uses a collection of control characters to format the Cues (e.g. to change the colour) but also to provided accented characters. This, coupled with the "Double Height" of teletext subtitles did mean I used some assumptions, which I hope are valid.
+Additionally, I really struggled with how to parse the control characters, the EBU STL format uses a collection of control characters to format the Cues (e.g. to change the colour) but also to provide accented characters. This, coupled with the "Double Height" of teletext subtitles did mean I used some assumptions, which I hope are valid.
 
 ## Code
 There are 2 packages;
@@ -54,14 +54,20 @@ A very basic command line app is included in ./cmd/stl-to-ttlml
     cd ./cmd/stl-to-ttml/
     go build ./stl-to-ttml.go
 
+### Modes of operation
+The CLI supports 4 modes of operation
+* [single file conversion](#single)
+* [folder conversion with polling](#folder)
+* [splitting a subtitle file to multiple TTML files. e.g. 1 for each part of a programme](#split)
+* [conforming a subtitle file to remove breaks, add breaks and also add padding](#conform)
 
-### Single File
+#### <a name="single"></a>Single File
 convert a single suppied file to TTML e.g. (when compiled)
 
     stl-to-ttml subs_test_with_audio_v1.stl subs_test_with_audio_v1.ttml
 
 
-### Folder once or continuously
+#### <a name="folder"></a>Folder once or continuously
 To process a single folder once, you can use the "folder" mode and provide the source and destination folders;
 
     stl-to-ttml -mode=folder ./scan-in ./scan-out
@@ -72,6 +78,124 @@ If you wish to leave the process running and scan every "x" number of seconds, y
 
 Note that for folder scans, only files with a `.stl` extension will be picked up. I haven't put much error handling and so the continuous scan may not be reliable if it hits an issue with a file.
 
+
+#### <a name="split"></a>Splitting a file
+To split a file, you need to supply a JSON edit list file which lists all the parts and the timecodes in and out of those files. Each part will create a new TTML file, with the subtitles offset from 00:00:00:00. E.G. if you had a part with the incode 10:20:00:00, a subtitle file at 10:21:22:23 will be offset to 00:01:22:23
+
+Example JSON file
+```
+{
+	"InputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\0t0bmh6_ENG.stl",
+	"Parts": [
+        {
+            "TimecodeStart": "10:00:00:00",
+            "TimecodeEnd": "10:16:58:11",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART1.ttml"
+        },
+        {
+            "TimecodeStart": "10:18:00:00",
+            "TimecodeEnd": "10:29:02:00",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART2.ttml"
+        },
+        {
+            "TimecodeStart": "10:30:00:00",
+            "TimecodeEnd": "10:44:32:22",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART3.ttml"
+        },
+        {
+            "TimecodeStart": "10:45:00:00",
+            "TimecodeEnd": "10:58:33:04",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART4.ttml"
+        },
+        {
+            "TimecodeStart": "10:59:00:00",
+            "TimecodeEnd": "11:12:28:14",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART5.ttml"
+        },
+        {
+            "TimecodeStart": "11:13:00:00",
+            "TimecodeEnd": "11:23:17:24",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART6.ttml"
+        },
+        {
+            "TimecodeStart": "11:24:00:00",
+            "TimecodeEnd": "11:34:05:10",
+            "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_PART7.ttml"
+        }
+    ]
+}
+```
+
+Running the split job
+
+    stl-to-ttml -mode=split E:\projects\golang\ebustl-to-ttml\testfiles\split_job.json
+
+#### <a name="conform"></a>Conforming a file
+You can "conform" a file by editing out gaps and also inserting "padding" to account for the addition of bumpers etc. As with splitting, you supply a JSON job file which details the parts of the subtitle to use and also addition of any padding, for example;
+
+```
+{
+	"InputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\0t0bmh6_ENG.stl",
+    "OutputFilePath": "E:\\projects\\golang\\ebustl-to-ttml\\testfiles\\output\\0t0bmh6_ENG_conformed.ttml",
+	"Sources": [
+        {
+            "TimecodeStart": "00:00:00:00",
+            "TimecodeEnd": "00:10:00:00",
+            "Padding": true
+        },
+        {
+            "TimecodeStart": "10:00:00:00",
+            "TimecodeEnd": "10:16:58:11",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "10:18:00:00",
+            "TimecodeEnd": "10:29:02:00",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "10:30:00:00",
+            "TimecodeEnd": "10:44:32:22",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "10:45:00:00",
+            "TimecodeEnd": "10:58:33:04",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "10:59:00:00",
+            "TimecodeEnd": "11:12:28:14",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "11:13:00:00",
+            "TimecodeEnd": "11:23:17:24",
+            "Padding": false
+        },
+        {
+            "TimecodeStart": "11:24:00:00",
+            "TimecodeEnd": "11:34:05:10",
+            "Padding": false
+        }
+    ]
+}
+```
+
+In the above example, the first part, namely
+
+```
+        {
+            "TimecodeStart": "00:00:00:00",
+            "TimecodeEnd": "00:10:00:00",
+            "Padding": true
+        },
+```
+will add a 10 minute padding at the start of the output file, this is signalled by the "Padding" being set to true. If "Padding" is set to false, then source subtitles between the timecodes of the part are copied to the output, again, the source subtitles are offset to ensure a continuous timecode.
+
+Similar to the split mode, you run a conform job by pointing the CLI at the JSON job file
+
+    stl-to-ttml -mode=conform E:\projects\golang\ebustl-to-ttml\testfiles\conform_job.json
 
 ## Limitations
 * Control codes 0x08 (Flash) and 0x09 (Steady (1,2)) are not supported, a warning will be written to STDOUT but processing will continue - EBU recommendation "This code is technically valid in an STL TTI block, but would not be expected to be used.", although I did find it in a production sample file.
@@ -87,7 +211,8 @@ Note that for folder scans, only files with a `.stl` extension will be picked up
 * only a couple of code pages supported in Cues (and only 850 for the header "GSI" section)
 * review how the Cues are processed, it's very messy right now
 * ~~add folder mode + watch~~
-* add editor mode for stitch and also split
+* ~~add editor mode for stitch and also split~~
+* support S3 source / destination
 
 ## Credits
 * as well are copying and editing [Quentin Renard's go-astisub project](https://github.com/asticode/go-astisub)

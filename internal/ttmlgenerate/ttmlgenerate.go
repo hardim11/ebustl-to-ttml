@@ -495,6 +495,9 @@ func reformatLine(input string, codepage string, fixedalignment bool) (string, e
 				}
 			} else if (bt == 0x09) || (bt == 0x08) {
 				fmt.Println("WARN: Flash is not supported so ignoring control code [" + hex.EncodeToString([]byte{bt}) + "] ")
+				if configuration.Debug {
+					fmt.Println("DEBUG: cue text: " + input)
+				}
 			} else {
 				fmt.Println("ERROR: unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
 				return "", errors.New("ttmlgenerate.reformatLine raised unhandled error - unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)

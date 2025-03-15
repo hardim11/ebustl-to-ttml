@@ -155,3 +155,19 @@ func GetTti(r *iobit.Reader, gsi Gsi) (Tti, error) {
 
 	return res, nil
 }
+
+func (t *Tti) SetNewtimecodes(incode_frames int, outcode_frames int, stl EbuStl) {
+	t.TimeCodeInFrames = incode_frames
+	t.TimeCodeOutFrames = outcode_frames
+
+	//TODO sanity check timecodes
+	// check not too small or large!
+
+	// do the timecode
+	t.TimeCodeInRendered = stl.FramesToTc(t.TimeCodeInFrames)
+	t.TimeCodeOutRendered = stl.FramesToTc(t.TimeCodeOutFrames)
+
+	// do the STL timecode
+	t.TimeCodeIn = stl.FramesToStlTimecode(t.TimeCodeInFrames)
+	t.TimeCodeOut = stl.FramesToStlTimecode(t.TimeCodeOutFrames)
+}

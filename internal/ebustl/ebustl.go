@@ -1,10 +1,11 @@
 package ebustl
 
 import (
+	filehandler "ebustl-to-ttml/internal/filehandler"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
+	"strings"
 
 	"github.com/bamiaux/iobit"
 )
@@ -45,32 +46,69 @@ func (e *EbuStl) FramesToStlTimecode(frames int) [4]byte {
 	return res
 }
 
+func SplitTcDelimiters(r rune) bool {
+	return r == ':' || r == '.'
+}
+
+func (e *EbuStl) TcToFrames(tc string) (int, error) {
+	// timecode = 00:12:51:09
+	// timecode could also be
+	//            00:02:49.760
+	// 			  012345678901
+
+	if (len(tc) != 11) && (len(tc) != 12) {
+		return 0, errors.New("timecode string incorrect length")
+	}
+
+	parts := strings.FieldsFunc(tc, SplitTcDelimiters)
+	if len(parts) != 4 {
+		return 0, errors.New("timecode string incorrect sections")
+	}
+
+	hr, _ := strconv.Atoi(parts[0])
+	mn, _ := strconv.Atoi(parts[1])
+	sc, _ := strconv.Atoi(parts[2])
+	fr, _ := strconv.Atoi(parts[3])
+
+	fps := e.Gsi.Fps()
+	if len(parts[3]) == 3 {
+		deci := int((float32(fr) / float32(1000) * float32(fps)))
+		return (hr * 60 * 60 * fps) + (mn * 60 * fps) + (sc * fps) + deci, nil
+	} else {
+		return (hr * 60 * 60 * fps) + (mn * 60 * fps) + (sc * fps) + fr, nil
+	}
+}
+
 func (e *EbuStl) OffsetCues(offset int) {
 	// loop the cues and offset
 	for idx := range e.Ttis {
-		e.Ttis[idx].TimeCodeInFrames = e.Ttis[idx].TimeCodeInFrames + offset
-		e.Ttis[idx].TimeCodeOutFrames = e.Ttis[idx].TimeCodeOutFrames + offset
+		new_in := e.Ttis[idx].TimeCodeInFrames + offset
+		new_out := e.Ttis[idx].TimeCodeOutFrames + offset
 
-		//TODO sanity check timecodes
-		// check not too small or large!
+		e.Ttis[idx].SetNewtimecodes(new_in, new_out, *e)
+		// e.Ttis[idx].TimeCodeInFrames = e.Ttis[idx].TimeCodeInFrames + offset
+		// e.Ttis[idx].TimeCodeOutFrames = e.Ttis[idx].TimeCodeOutFrames + offset
 
-		// do the timecode
-		e.Ttis[idx].TimeCodeInRendered = e.FramesToTc(e.Ttis[idx].TimeCodeInFrames)
-		e.Ttis[idx].TimeCodeOutRendered = e.FramesToTc(e.Ttis[idx].TimeCodeOutFrames)
+		// //TODO sanity check timecodes
+		// // check not too small or large!
 
-		// do the STL timecode
-		e.Ttis[idx].TimeCodeIn = e.FramesToStlTimecode(e.Ttis[idx].TimeCodeInFrames)
-		e.Ttis[idx].TimeCodeOut = e.FramesToStlTimecode(e.Ttis[idx].TimeCodeOutFrames)
+		// // do the timecode
+		// e.Ttis[idx].TimeCodeInRendered = e.FramesToTc(e.Ttis[idx].TimeCodeInFrames)
+		// e.Ttis[idx].TimeCodeOutRendered = e.FramesToTc(e.Ttis[idx].TimeCodeOutFrames)
+
+		// // do the STL timecode
+		// e.Ttis[idx].TimeCodeIn = e.FramesToStlTimecode(e.Ttis[idx].TimeCodeInFrames)
+		// e.Ttis[idx].TimeCodeOut = e.FramesToStlTimecode(e.Ttis[idx].TimeCodeOutFrames)
 	}
 }
 
 func ReadStlFile(filepath string) (*EbuStl, error) {
-	v, err := os.ReadFile(filepath) //read the content of file
+	v, err := filehandler.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	return ReadStlPayload(v)
+	return ReadStlPayload(*v)
 }
 
 func ReadStlPayload(b []byte) (*EbuStl, error) {
@@ -169,4 +207,48 @@ func (e *EbuStl) DebugPrint() {
 			fmt.Printf("Skipping a comment cue - ID %d \n", aTti.CommentFlag)
 		}
 	}
+}
+
+func (e *EbuStl) GetBetweenTimecodes(incode string, outcode string, additional_offset int) (*EbuStl, error) {
+	// it is expected that the original has been merged already but what if it hasn't?
+
+	// copy the original
+	res := EbuStl{}
+
+	res.Gsi = e.Gsi // copy the header, need to change the # subs etc later
+	// reset cue list
+	res.Ttis = []Tti{}
+
+	// get part in and out frames
+	incode_frames, err := res.TcToFrames(incode)
+	if err != nil {
+		return nil, err
+	}
+	outcode_frames, err := res.TcToFrames(outcode)
+	if err != nil {
+		return nil, err
+	}
+
+	// loop the source subs and copy in the ones we want to keep
+	for _, aCue := range e.Ttis {
+
+		// evaluate if in the range
+		if (aCue.TimeCodeInFrames >= incode_frames) && (aCue.TimeCodeInFrames < outcode_frames) {
+			// if it is, copy and offset the times to match the part
+			newCue := aCue
+			// set values
+			// adjust timecodes
+			new_begin := newCue.TimeCodeInFrames - incode_frames + additional_offset
+			new_end := newCue.TimeCodeOutFrames - incode_frames + additional_offset
+			newCue.SetNewtimecodes(new_begin, new_end, res)
+			// add
+			res.Ttis = append(res.Ttis, newCue)
+		}
+	}
+
+	// TODO update the Gsi
+	fmt.Println("TODO update the Gsi")
+
+	// return
+	return &res, nil
 }

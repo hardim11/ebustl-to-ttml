@@ -2,11 +2,12 @@ package main
 
 import (
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	filehandler "ebustl-to-ttml/internal/filehandler"
+	subtitleediting "ebustl-to-ttml/internal/subtitleediting"
 	ttmlgenerate "ebustl-to-ttml/internal/ttmlgenerate"
 	"errors"
 	"flag"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 
 const STL_EXT = "stl"
 
-func ProcessAfile(sourcefilepath string, outputfilepath string, offsetSeconds int) error {
+func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds int, debug bool) error {
 	fmt.Println("=============================================================")
 	fmt.Println("=== Processing " + sourcefilepath + " ===")
 	stl, err := ebustl.ReadStlFile(sourcefilepath)
@@ -37,32 +38,18 @@ func ProcessAfile(sourcefilepath string, outputfilepath string, offsetSeconds in
 
 	config := ttmlgenerate.TtmlConvertConfigurationDefault()
 	config.PreserveSpaces = true
+	config.Debug = debug
 	ttml, err := ttmlgenerate.CreateTtml(*stl, comment, &config)
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
 	}
 
-	os.WriteFile(outputfilepath, []byte(ttml), 0644)
+	filehandler.WriteFile(outputfilepath, []byte(ttml))
 	fmt.Println("=== Outfile " + outputfilepath + " ===")
 	fmt.Println("=============================================================")
 	return nil
 }
-
-func createFolder(folder string) error {
-	if _, err := os.Stat(folder); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(folder, os.ModePerm)
-		if err != nil {
-			fmt.Println(err)
-			return err
-		}
-	}
-	return nil
-}
-
-// func fileNameWithoutExtension(fileName string) string {
-// 	return strings.TrimSuffix(filepath.Base(fileName), filepath.Ext(fileName))
-// }
 
 func getHostname() string {
 	hostname, err := os.Hostname()
@@ -73,33 +60,20 @@ func getHostname() string {
 	}
 }
 
-func fileexists(path string) bool {
-	// https://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-exists
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	return false
-}
-
-func folderScan(in_folder string, out_folder string, move_to string, offsetSeconds int, continueOnError bool) error {
+func folderScan(in_folder string, out_folder string, move_to string, offsetSeconds int, continueOnError bool, debug bool) error {
 	// run folder scan
-	root := os.DirFS(in_folder)
-	stlFiles, err := fs.Glob(root, "*."+STL_EXT)
+	stlFiles, err := filehandler.FolderScan(in_folder, "*."+STL_EXT)
 	if err != nil {
 		return err
 	}
 
-	for _, afile := range stlFiles {
+	for _, afile := range *stlFiles {
 		oldFileExtension := filepath.Ext(afile)
 		sourcefilepath := path.Join(in_folder, afile)
 		outputfilepath := path.Join(out_folder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
 		move_to_filepath := path.Join(move_to, afile)
 		fmt.Println(outputfilepath)
-		err := ProcessAfile(sourcefilepath, outputfilepath, offsetSeconds)
+		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, debug)
 		if err != nil {
 			if continueOnError {
 				fmt.Printf("Encountered an error processing %s, error %s\n", sourcefilepath, err.Error())
@@ -110,7 +84,7 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 		} else {
 			// move file?
 			if move_to != "" {
-				err := os.Rename(sourcefilepath, move_to_filepath)
+				err := filehandler.MoveFile(sourcefilepath, move_to_filepath)
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -120,15 +94,15 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 	return nil
 }
 
-func processFolder(in_folder string, out_folder string, move_to string, offsetSeconds int, continuousScanInterval int) error {
+func processFolder(in_folder string, out_folder string, move_to string, offsetSeconds int, continuousScanInterval int, debug bool) error {
 	// check source folder exists
-	if !fileexists(in_folder) {
+	if !filehandler.DoesFileExist(in_folder) {
 		return errors.New("source folder does not exist")
 	}
 
 	// check destination folder exists, create if not
-	if !fileexists(out_folder) {
-		err := createFolder(out_folder)
+	if !filehandler.DoesFileExist(out_folder) {
+		err := filehandler.CreateFolder(out_folder)
 		if err != nil {
 			return err
 		}
@@ -136,8 +110,8 @@ func processFolder(in_folder string, out_folder string, move_to string, offsetSe
 
 	// check move to exists
 	if move_to != "" {
-		if !fileexists(move_to) {
-			err := createFolder(move_to)
+		if !filehandler.DoesFileExist(move_to) {
+			err := filehandler.CreateFolder(move_to)
 			if err != nil {
 				return err
 			}
@@ -145,13 +119,13 @@ func processFolder(in_folder string, out_folder string, move_to string, offsetSe
 	}
 
 	if continuousScanInterval < 1 {
-		return folderScan(in_folder, out_folder, "", offsetSeconds, false)
+		return folderScan(in_folder, out_folder, "", offsetSeconds, false, debug)
 	}
 
 	// continuous loop
 	for {
 		fmt.Printf("Scanning folder %s\n", in_folder)
-		err := folderScan(in_folder, out_folder, move_to, offsetSeconds, true)
+		err := folderScan(in_folder, out_folder, move_to, offsetSeconds, true, debug)
 		if err != nil {
 			fmt.Println("processFolder caught error " + err.Error())
 		}
@@ -167,9 +141,12 @@ func main() {
 	mode := ""
 	offsetSeconds := 0
 	continuousScanInterval := 0
+	debug := false
 	flag.StringVar(&mode, "mode", "single", "processing mode; single, folder, edit, split")
 	flag.IntVar(&offsetSeconds, "offsetSeconds", 0, "If set, will offset all Cues by this number of seconds, e.g. -36000 would change a Cue at 10:00:00:00 to 00:00:00:00")
 	flag.IntVar(&continuousScanInterval, "interval", 0, "If set for folder mode, folder poll with sleep this number of seconds between scans")
+	flag.BoolVar(&debug, "debug", false, "Enables extra debug messages")
+
 	flag.Parse()
 
 	// switch based upon operation mode selected
@@ -183,7 +160,7 @@ func main() {
 		input_file := flag.Args()[0]
 		output_file := flag.Args()[1]
 
-		err := ProcessAfile(input_file, output_file, offsetSeconds)
+		err := processAfile(input_file, output_file, offsetSeconds, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -206,16 +183,38 @@ func main() {
 		input_folder := flag.Args()[0]
 		output_folder := flag.Args()[1]
 
-		err := processFolder(input_folder, output_folder, move_to, offsetSeconds, continuousScanInterval)
+		err := processFolder(input_folder, output_folder, move_to, offsetSeconds, continuousScanInterval, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-	case "edit":
-		fmt.Println("Edit mode - TO DO!")
+	case "conform":
+		if len(flag.Args()) != 1 {
+			fmt.Println("usage: stl-to-ttml -mode=conform <job file path>")
+			os.Exit(1)
+		}
+
+		job_file_path := flag.Args()[0]
+		err := subtitleediting.ConformJob(job_file_path)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
 	case "split":
-		fmt.Println("Split mode - TO DO!")
+		if len(flag.Args()) != 1 {
+			fmt.Println("usage: stl-to-ttml -mode=conform <job file path>")
+			os.Exit(1)
+		}
+
+		job_file_path := flag.Args()[0]
+		err := subtitleediting.PartJob(job_file_path)
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
 	default:
 		fmt.Println("Unknown mode")
+		os.Exit(1)
 	}
+	os.Exit(0)
 }
