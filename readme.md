@@ -21,6 +21,10 @@ Within the code, I copied heavily from [Quentin Renard's go-astisub project](htt
 
 I hope I have credited all code and standards source but apologies for any I missed. Additionally, I captured a number of public DASH video streams and decoded the subtitles to analyse alternative ways of formatting.
 
+## Example STL file
+Our Access Services team kindly provided the example [mp4](examples/subs_test_with_audio_v1.mp4) and matching [STL file](examples/subs_test_with_audio_v1.stl) for testing purposes. Many thanks to Matt for this.
+
+
 ## Challenges
 The greatest challenge I found was maintaining positioning. STLs offer 3 horizontal positions - left justified, centre justified and right justified - but it also offers unjustified ("unchanged presentation"). This latter mode is often used with space padding between lines to provide more complex positioning. The only method I have found to support this, without breaking up the individual subtitle "cues" into lots of regions, is to use the `xml:space="preserve"` attribute but I am not convinced of how widely this is supported between players.
 
