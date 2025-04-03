@@ -1,6 +1,7 @@
 package ebustl
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -104,5 +105,11 @@ func (g *Gsi) Read(r *iobit.Reader) error {
 
 	g.MaximumNumberDisplayableCharactersInt, _ = strconv.Atoi(g.MaximumNumberDisplayableCharacters[:])
 	g.MaximumNumberDisplayableRowsInt, _ = strconv.Atoi(g.MaximumNumberDisplayableRows[:])
+
+	// validation?
+	if g.CodePageNumber != "437" && g.CodePageNumber != "850" && g.CodePageNumber != "860" && g.CodePageNumber != "863" && g.CodePageNumber != "865" {
+		return errors.New("code page number \"" + g.CodePageNumber + "\" is not a valid code page")
+	}
+
 	return nil
 }
