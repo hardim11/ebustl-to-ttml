@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -69,9 +68,9 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 
 	for _, afile := range *stlFiles {
 		oldFileExtension := filepath.Ext(afile)
-		sourcefilepath := path.Join(in_folder, afile)
-		outputfilepath := path.Join(out_folder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
-		move_to_filepath := path.Join(move_to, afile)
+		sourcefilepath := filepath.Join(in_folder, afile)
+		outputfilepath := filepath.Join(out_folder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
+		move_to_filepath := filepath.Join(move_to, afile)
 		fmt.Println(outputfilepath)
 		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, debug)
 		if err != nil {

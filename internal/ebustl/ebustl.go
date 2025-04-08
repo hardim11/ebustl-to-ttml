@@ -112,6 +112,11 @@ func ReadStlFile(filepath string) (*EbuStl, error) {
 }
 
 func ReadStlPayload(b []byte) (*EbuStl, error) {
+
+	if len(b) < 1024 {
+		return nil, errors.New("invalid subtitle input - stl file length < 1204 bytes (the GSI is 1024 so this is not valid)")
+	}
+
 	var res EbuStl
 
 	res.Gsi = Gsi{}
@@ -120,7 +125,11 @@ func ReadStlPayload(b []byte) (*EbuStl, error) {
 	r := iobit.NewReader(b)
 
 	// read GSI
-	res.Gsi.Read(&r)
+	err := res.Gsi.Read(&r)
+	if err != nil {
+		fmt.Println("Failed to read STL GSI block")
+		return nil, err
+	}
 
 	// skip forward 75 + 576 bytes - Spare Bytes + User Defined Area
 	r.Skip((75 + 576) * 8)

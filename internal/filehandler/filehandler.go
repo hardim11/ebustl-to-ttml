@@ -3,6 +3,8 @@ package filehandler
 // the idea is to move all file operations to here so we can support remote URLs etc
 // for now, assume file!
 
+// I'll admit that this is somewhat is redundant but, if I ever add S3 etc it will be useful
+
 var file_handler = FileLocal{}
 
 func DoesFileExist(filepath string) bool {

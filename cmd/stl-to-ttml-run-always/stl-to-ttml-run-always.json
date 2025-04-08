@@ -1,0 +1,9 @@
+{
+	"SourceFolder": "M:\\video_share\\ITV\\subtitles\\in",
+	"TtmlOutputFolder": "M:\\video_share\\ITV\\subtitles\\output",
+	"ProcessedFolder": "M:\\video_share\\ITV\\subtitles\\processed",
+	"FailedFolder": "M:\\video_share\\ITV\\subtitles\\failed",
+	"ScanIntervalSeconds": 10,
+	"StopOnError": false,
+	"Debug": false
+}
