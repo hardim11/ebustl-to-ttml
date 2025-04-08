@@ -14,6 +14,7 @@ import (
 )
 
 const STL_FILE_MATCH = "*.[sS][tT][lL]" // to ensure case sensitivity for stl
+const TTML_EXT = ".ttml"
 const CONFIG_FILE = "stl-to-ttml-run-always.json"
 const VERSION_INFO = "1.0.1"
 
@@ -26,6 +27,7 @@ func processAfile(sourcefilepath string, outputfilepath string, debug bool) erro
 		return err
 	}
 
+	log.Println("STL Read OK")
 	log.Printf("number of ttis = %d\n", len(stl.Ttis))
 	log.Printf("number of subtitles = %d\n", stl.Gsi.TotalNumberTtiBlocksInt)
 	currentTime := time.Now()
@@ -76,7 +78,7 @@ func folderScan(config serviceConfig) error {
 	for _, afile := range *stlFiles {
 		oldFileExtension := filepath.Ext(afile)
 		sourcefilepath := filepath.Join(config.SourceFolder, afile)
-		outputfilepath := filepath.Join(config.TtmlOutputFolder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
+		outputfilepath := filepath.Join(config.TtmlOutputFolder, strings.Replace(afile, oldFileExtension, TTML_EXT, 1))
 		move_to_filepath := filepath.Join(config.ProcessedFolder, afile)
 		failed_filepath := filepath.Join(config.FailedFolder, afile)
 		log.Println(outputfilepath)

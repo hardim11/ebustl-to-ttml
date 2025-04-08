@@ -138,6 +138,12 @@ func (r *RegionStruct) DecodeRegionNameString(RegionId string) {
 	}
 }
 
+func GetRegionFromNameString(RegionId string) RegionStruct {
+	res := RegionStruct{}
+	res.DecodeRegionNameString(RegionId)
+	return res
+}
+
 func getTtmlDefaultStyle() []TTMLOutStyle {
 	res := []TTMLOutStyle{}
 
@@ -285,8 +291,9 @@ func getTtmlRegions(region_id string) TTMLOutRegion {
 			Extent Y	lines (double height lines) * 8.33
 	*/
 
-	var regiondata RegionStruct
-	regiondata.DecodeRegionNameString(region_id)
+	// var regiondata RegionStruct
+	// regiondata.DecodeRegionNameString(region_id)
+	regiondata := GetRegionFromNameString(region_id)
 
 	origin_x := float64(regiondata.LeftPad) * 2.5
 	origin_y := float64(regiondata.LineNumber-1) * 4.165
@@ -822,7 +829,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 
 	configuration = *config
 
-	// merge TTI's
+	// merge TTI's - where a cue is split over multiple TTI's convert to just one
 	stlmerged, err := stl.MergeExtensionBlocksTtis()
 	if err != nil {
 		return "", err
@@ -868,10 +875,10 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 
 	res.Body.Style = "ttmlStyle"
 
-	// regions list
+	// create empty regions list
 	regions := map[string]bool{}
 
-	// body
+	// deal with the actual subtitles
 	for _, aTti := range stlmerged.Ttis {
 		if aTti.CommentFlag != 1 {
 			// add a para

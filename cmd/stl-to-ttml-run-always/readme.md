@@ -16,10 +16,10 @@ The application requires a JSON file called "stl-to-ttml-run-always.json" locate
 	"Debug": false
 }
 ```
-Hopefully the fields are self-explanatory. Normally "StopOnError" and "Debug" would be seto to false. Beware that windows paths will include the "\\" charcter which will need to be escaped with another "\\" e.g. "\\\\".
+Hopefully the fields are self-explanatory. Normally "StopOnError" and "Debug" would be set to false. Beware that windows paths will include the "\\" charcter which will need to be escaped with another "\\" e.g. "\\\\".
 
 ## Compiling the executable
-With the Repository downloaded to your computer and with Golang installed (this was written against Go 1.22), in console window, change directory to the cmd\stl-to-ttml-run-always folder and execute following command
+With the Repository downloaded to your computer and with Golang installed (this was written against Go 1.22), in a console window, change directory to the cmd\stl-to-ttml-run-always folder and execute following command
 
     go build .
 
