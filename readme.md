@@ -213,10 +213,16 @@ Similar to the split mode, you run a conform job by pointing the CLI at the JSON
 * support alternative display approaches.
 * create other variants of TTML.
 * only a couple of code pages supported in Cues (and only 850 for the header "GSI" section)
-* review how the Cues are processed, it's very messy right now
+* ~~review how the Cues are processed, it's very messy right now,~~ I've rewritten to write to a virtual screen and interpret that, will see if better
 * ~~add folder mode + watch~~
 * ~~add editor mode for stitch and also split~~
 * support S3 source / destination
+
+## Versions
+* 1.0.1 - initial attempt
+* 1.1.0 - new render approach;
+	* rewrite of render process to separate the Teletext decode from the TTML encode due to formatting issues observed. 
+	* increased dubugging output
 
 ## Credits
 * as well are copying and editing [Quentin Renard's go-astisub project](https://github.com/asticode/go-astisub)

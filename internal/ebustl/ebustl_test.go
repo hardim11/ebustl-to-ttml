@@ -1,14 +1,25 @@
 package ebustl
 
 import (
+	"os"
 	"testing"
 )
+
+func ReadFile(filepath string) (*[]byte, error) {
+	v, err := os.ReadFile(filepath)
+	return &v, err
+}
 
 func TestGsiBlock(t *testing.T) {
 
 	test_file := `E:\Users\matth\Documents\ITV\fast-files\fast-s3\Subtitles\S3\0t0bmh6_ENG.stl`
 
-	stl, err := ReadStlFile(test_file)
+	stl_payload, err := ReadFile(test_file)
+	if err != nil {
+		t.Fatalf("ERROR: " + err.Error())
+	}
+
+	stl, err := ReadStlPayload(*stl_payload)
 	if err != nil {
 		t.Fatalf("ERROR: " + err.Error())
 	}

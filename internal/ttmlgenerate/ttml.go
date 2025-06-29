@@ -200,6 +200,11 @@ type TTMLOutSubtitle struct {
 	TTMLOutStyleAttributes
 }
 
+func (s *TTMLOutSubtitle) ToString() string {
+	res, _ := xml.MarshalIndent(s, "", "   ")
+	return string(res)
+}
+
 // TTMLOutItem represents an output TTML Item
 type TTMLOutItem struct {
 	Style string `xml:"style,attr,omitempty"`

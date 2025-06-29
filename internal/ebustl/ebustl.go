@@ -1,13 +1,14 @@
 package ebustl
 
 import (
-	filehandler "ebustl-to-ttml/internal/filehandler"
+	"ebustl-to-ttml/internal/filehandler"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/bamiaux/iobit"
+	log "github.com/sirupsen/logrus"
 )
 
 type EbuStl struct {
@@ -127,7 +128,7 @@ func ReadStlPayload(b []byte) (*EbuStl, error) {
 	// read GSI
 	err := res.Gsi.Read(&r)
 	if err != nil {
-		fmt.Println("Failed to read STL GSI block")
+		log.Error("Failed to read STL GSI block")
 		return nil, err
 	}
 
@@ -136,8 +137,8 @@ func ReadStlPayload(b []byte) (*EbuStl, error) {
 
 	expected_length := 1024 + (res.Gsi.TotalNumberTtiBlocksInt * 128)
 	if expected_length > len(b) {
-		fmt.Printf("expected_length=%d\n", expected_length)
-		fmt.Printf("len(b)=%d\n", len(b))
+		log.Debugf("expected_length=%d\n", expected_length)
+		log.Debugf("len(b)=%d\n", len(b))
 		return nil, errors.New("file is shorter than number of cues")
 	}
 
@@ -159,7 +160,6 @@ func (e *EbuStl) MergeExtensionBlocksTtis() (*EbuStl, error) {
 	res := *e
 	// empty the output
 	res.Ttis = []Tti{}
-	//fmt.Println(len(e.Ttis))
 	var ttiFirst *Tti
 	for _, y := range e.Ttis {
 
@@ -169,7 +169,6 @@ func (e *EbuStl) MergeExtensionBlocksTtis() (*EbuStl, error) {
 		} else if y.ExtensionBlockNumber < 0xff {
 			// add them to the first one
 			ttiFirst.ExtendedTextField = append(ttiFirst.ExtendedTextField, y.TextField[:]...)
-			// fmt.Println(ttiFirst.ExtendedTextField)
 		}
 
 		if y.ExtensionBlockNumber == 0xff {
@@ -184,8 +183,6 @@ func (e *EbuStl) MergeExtensionBlocksTtis() (*EbuStl, error) {
 				ttiFirst.ExtendedTextField = append(ttiFirst.ExtendedTextField, y.TextField[:]...)
 				ttiFirst.ExtensionBlockNumber = 0xff
 				foo := *ttiFirst
-				// fmt.Print(">>>length == ")
-				// fmt.Println(len(ttiFirst.ExtendedTextField))
 				res.Ttis = append(res.Ttis, foo)
 				ttiFirst = nil
 			}
@@ -210,10 +207,10 @@ func (e *EbuStl) DebugPrint() {
 	// body
 	for _, aTti := range e.Ttis {
 		if aTti.CommentFlag != 1 {
-			fmt.Println(aTti.TimeCodeInRendered + "," + strconv.Itoa(int(aTti.VerticalPosition)) + "," + aTti.JustificationCodeRendered + ",\"" + JustLetters(aTti.ExtendedTextField) + "\"")
+			log.Debug(aTti.TimeCodeInRendered + "," + strconv.Itoa(int(aTti.VerticalPosition)) + "," + aTti.JustificationCodeRendered + ",\"" + JustLetters(aTti.ExtendedTextField) + "\"\n")
 
 		} else {
-			fmt.Printf("Skipping a comment cue - ID %d \n", aTti.CommentFlag)
+			log.Debugf("Skipping a comment cue - ID %d \n", aTti.CommentFlag)
 		}
 	}
 }
@@ -256,7 +253,7 @@ func (e *EbuStl) GetBetweenTimecodes(incode string, outcode string, additional_o
 	}
 
 	// TODO update the Gsi
-	fmt.Println("TODO update the Gsi")
+	log.Warn("TODO update the Gsi")
 
 	// return
 	return &res, nil

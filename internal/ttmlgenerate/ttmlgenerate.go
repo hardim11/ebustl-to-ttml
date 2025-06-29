@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const FPS = 25
@@ -23,7 +25,7 @@ const COLOUR_CYAN = "#00FFFF"
 const COLOUR_WHITE = "#FFFFFF"
 const TELETEXT_WIDTH = 40
 
-var configuration TtmlConvertConfiguration
+//var configuration TtmlConvertConfiguration
 
 type RegionStruct struct {
 	LineNumber int
@@ -32,116 +34,92 @@ type RegionStruct struct {
 	Width      int
 }
 
-func DebugPrintByteArrray(byteArry []byte) string {
-	return "<!-- " + hex.EncodeToString([]byte(byteArry)) + " -->"
+type SpanOrLineBreak struct {
+	IsLineBreak bool
+	IsPadding   bool
+	//PreserveSpace    bool //TODO should I keep this and use for internal padding?
+	BackgroundColour string
+	ForegroundColour string
+	ContentString    string
+	DebugNotes       []string
 }
 
-func GetAccentedChar(diacritical byte, letter byte) (string, error) {
-	// this is going to be messy,
-	// diacritical
-	// https://en.wikipedia.org/wiki/EIA-608
-	// using the EBU tech3360 recommendations
-	// The accented letters in the Latin-based languages in Teletext are created according to the “floating accent" principle.
-	// Column “C0" of the character code table 00 (Latin alphabet) in Annex B contains diacritical marks which are overlaid on
-	// another character in the same presentation position. Each single accented character intended for presentation occupies
-	// two bytes, and the diacritical mark is sent first (e.g. Ä = C8h 41h, ê = C3h 65h). This is opposite to the order used in
-	// Unicode where combining character(s) follow the base character.
-	// Ä = C8h 41h -> Ä = 0308h 41h
-	// e.g. fmt.Println("A\u0308") > Ä
+func SpanOrLineBreakNew() SpanOrLineBreak {
+	return SpanOrLineBreak{
+		IsLineBreak:      false,
+		IsPadding:        false,
+		BackgroundColour: COLOUR_BLACK,
+		ForegroundColour: COLOUR_WHITE,
+		ContentString:    "",
+	}
+}
 
-	if configuration.Debug {
-		fmt.Println("GetAccentedChar I've been called, fingers crossed")
+func (s *SpanOrLineBreak) ToString() string {
+	res := fmt.Sprintf("IsLineBreak %t, IsPadding %t, BackgroundColour %s, ForegroundColour %s - \n>%s<", s.IsLineBreak, s.IsPadding, s.BackgroundColour, s.ForegroundColour, s.ContentString)
+	return res
+}
+
+type SubtitleExtent struct {
+	BoxRight  int
+	BoxLeft   int
+	BoxHeight int
+	BoxTop    int
+}
+
+func (e *SubtitleExtent) ToString() string {
+	return fmt.Sprintf("Extent top=%d, height=%d, left=%d, right=%d", e.BoxTop, e.BoxHeight, e.BoxLeft, e.BoxRight)
+}
+
+type NormalisedPara struct {
+	SpansAndBreaks []SpanOrLineBreak
+	//JustificationCode int
+	//Extent SubtitleExtent
+}
+
+func (n *NormalisedPara) TrimSpacesWithBr(input string) string {
+	res := strings.TrimSpace(input)
+	if strings.HasSuffix(res, "<br />") {
+		res = strings.TrimSuffix(res, "<br />")
+		res = strings.TrimSpace(res)
+		res = res + "<br />"
 	}
 
-	// convert the accent to unicode combining character
-	unicode_diacritical := 0
-	switch diacritical {
-	case 0xc1:
-		unicode_diacritical = 0x0300
-	case 0xc2:
-		unicode_diacritical = 0x0301
-	case 0xc3:
-		unicode_diacritical = 0x0302
-	case 0xc4:
-		unicode_diacritical = 0x0303
-	case 0xc5:
-		unicode_diacritical = 0x0304
-	case 0xc6:
-		unicode_diacritical = 0x0306
-	case 0xc7:
-		unicode_diacritical = 0x0307
-	case 0xc8:
-		unicode_diacritical = 0x0308
-	case 0xca:
-		unicode_diacritical = 0x030a
-	case 0xcb:
-		unicode_diacritical = 0x0327
-	case 0xcc:
-		unicode_diacritical = 0x0332
-	case 0xcd:
-		unicode_diacritical = 0x030B
-	case 0xce:
-		unicode_diacritical = 0x0328
-	case 0xcf:
-		unicode_diacritical = 0x030C
-	default:
-		if configuration.Debug {
-			fmt.Println("GetAccentedChar oopsie")
+	return res
+}
+
+func (n *NormalisedPara) ConvertToXML() (string, error) {
+
+	// for _, y := range n.SpansAndBreaks {
+	// 	fmt.Println(">> " + y.ToString() + " <<")
+	// 	// 	fmt.Println(">>> " + y.ContentString + " <<<")
+	// 	// 	fmt.Printf("% x\n", y.ContentString)
+	// 	// 	//fmt.Println(hex.EncodeToString([]byte(y.ContentString)))
+	// }
+
+	res := ""
+	for _, y := range n.SpansAndBreaks {
+		if y.IsLineBreak {
+			res = res + "<br />"
+			res = res + "\n"
+		} else if y.IsPadding {
+			res = res + "<span xml:space=\"preserve\">" + XmlEscapeText(y.ContentString) + "</span>"
+			res = res + "\n"
+		} else {
+			if y.BackgroundColour == "" || y.ForegroundColour == "" {
+				return "", errors.New("failed to convert Paragraph to XML as foreground / background colours not set - NormalisedPara.ConvertToXML, " + y.ContentString)
+			}
+			res = res + "<span tts:backgroundColor=\"" + y.BackgroundColour + "\" tts:color=\"" + y.ForegroundColour + "\">"
+			res = res + XmlEscapeText(y.ContentString)
+			res = res + "</span>"
+			res = res + "\n"
 		}
-		return "", errors.New("Failed to perform diacritical lookup for [" + fmt.Sprintf("%x", diacritical) + "][" + fmt.Sprintf("%x", letter) + "]")
 	}
 
-	// this seem wrong but maybe works?
-	quote := fmt.Sprintf(`"%c\u%04x"`, letter, unicode_diacritical)
-	res, err := strconv.Unquote(quote)
-	if err != nil {
-		return "", err
-	}
-
-	if configuration.Debug {
-		fmt.Println("GetAccentedChar I came up with '" + res + "'")
-	}
 	return res, nil
 }
 
-func (r *RegionStruct) DecodeRegionNameString(RegionId string) {
-	// we are using the region name to communicate the position using "." to split parameters
-	// this decodes that and updates the region struct values
-
-	r.LineNumber = 22
-	r.RowCount = 1
-	r.LeftPad = 0
-	r.Width = 40
-	parts := strings.Split(RegionId, ".")
-	if parts[0] != "region" {
-		return
-	}
-	if len(parts) != 5 {
-		return
-	}
-	var err error
-	r.LineNumber, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return
-	}
-	r.RowCount, err = strconv.Atoi(parts[2])
-	if err != nil {
-		return
-	}
-	r.LeftPad, err = strconv.Atoi(parts[3])
-	if err != nil {
-		return
-	}
-	r.Width, err = strconv.Atoi(parts[4])
-	if err != nil {
-		return
-	}
-}
-
-func GetRegionFromNameString(RegionId string) RegionStruct {
-	res := RegionStruct{}
-	res.DecodeRegionNameString(RegionId)
-	return res
+func DebugPrintByteArrray(byteArry []byte) string {
+	return "<!-- " + hex.EncodeToString([]byte(byteArry)) + " -->"
 }
 
 func getTtmlDefaultStyle() []TTMLOutStyle {
@@ -275,6 +253,46 @@ func getTtmlDefaultRegions(debug_region bool) []TTMLOutRegion {
 	return res
 }
 
+func (r *RegionStruct) decodeRegionNameString(RegionId string) {
+	// we are using the region name to communicate the position using "." to split parameters
+	// this decodes that and updates the region struct values
+
+	r.LineNumber = 22
+	r.RowCount = 1
+	r.LeftPad = 0
+	r.Width = 40
+	parts := strings.Split(RegionId, ".")
+	if parts[0] != "region" {
+		return
+	}
+	if len(parts) != 5 {
+		return
+	}
+	var err error
+	r.LineNumber, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return
+	}
+	r.RowCount, err = strconv.Atoi(parts[2])
+	if err != nil {
+		return
+	}
+	r.LeftPad, err = strconv.Atoi(parts[3])
+	if err != nil {
+		return
+	}
+	r.Width, err = strconv.Atoi(parts[4])
+	if err != nil {
+		return
+	}
+}
+
+func getRegionFromNameString(RegionId string) RegionStruct {
+	res := RegionStruct{}
+	res.decodeRegionNameString(RegionId)
+	return res
+}
+
 func getTtmlRegions(region_id string) TTMLOutRegion {
 	/*
 		input is like
@@ -289,16 +307,27 @@ func getTtmlRegions(region_id string) TTMLOutRegion {
 			Origin Y	(vertical line - 1) * 4.165
 			Extent X	2.5 * number viewable chars
 			Extent Y	lines (double height lines) * 8.33
+
+
+		I think this ^ is WRONG for horizontal at least
+		I suggest origin is 10% always, extent it 80% always, end of.
+
+		and I think height should be offset too to include a border
+		again, I think 10% top and 80% extent * line number
+
+
+		height
+		80 / 24 rows
 	*/
 
 	// var regiondata RegionStruct
 	// regiondata.DecodeRegionNameString(region_id)
-	regiondata := GetRegionFromNameString(region_id)
+	regiondata := getRegionFromNameString(region_id)
 
-	origin_x := float64(regiondata.LeftPad) * 2.5
-	origin_y := float64(regiondata.LineNumber-1) * 4.165
-	extent_x := float64(regiondata.Width) * 2.5
-	extent_y := float64(regiondata.RowCount) * 8.33
+	origin_x := 10.00                                             //float64(regiondata.LeftPad) * 2.5
+	origin_y := (float64(regiondata.LineNumber-1) * 3.50) + 10.00 // float64(regiondata.LineNumber-1) * 4.165
+	extent_x := 80.00                                             //float64(regiondata.Width) * 2.5
+	extent_y := float64(regiondata.RowCount) * 8.33               // float64(regiondata.RowCount) * 8.33
 
 	origin := fmt.Sprintf("%0.2f%% %0.2f%%", origin_x, origin_y)
 	extent := fmt.Sprintf("%0.2f%% %0.2f%%", extent_x, extent_y)
@@ -315,33 +344,6 @@ func getTtmlRegions(region_id string) TTMLOutRegion {
 	return res
 }
 
-func addSpace() string {
-	if configuration.PreserveSpaces {
-		return " "
-	}
-	return ""
-}
-
-func addPreserveSpace() string {
-	if configuration.PreserveSpaces {
-		return " xml:space=\"preserve\""
-	} else {
-		return ""
-	}
-}
-
-func doSpansXml(spanOn bool, foregroundColour string, backgroundColour string) string {
-	// if span already on, we need to close them
-	res := ""
-	// if there's already a span, close it.
-	if spanOn {
-		res = res + " </span>"
-	}
-
-	res = res + "<span tts:backgroundColor=\"" + backgroundColour + "\" tts:color=\"" + foregroundColour + "\"" + addPreserveSpace() + ">" + addSpace()
-	return res
-}
-
 func XmlEscapeText(input string) string {
 	// // EscapeText writes to w the properly escaped XML equivalent
 	// // of the plain text data s.
@@ -349,330 +351,10 @@ func XmlEscapeText(input string) string {
 	// 	return escapeText(w, s, true)
 	// }
 	// TODO I don't like mixing serialisation and escaped XML strings.
+	//fmt.Printf("XmlEscapeText % x %s\n", input, input)
 	buf := new(bytes.Buffer)
 	xml.EscapeText(buf, []byte(input))
 	return buf.String()
-}
-
-func getLeadingSpaces(input string) (span string, remaining string) {
-	// add in a span
-	pos := 0
-	for _, ch := range []byte(input) {
-		if ch != 0x20 {
-			break
-		}
-		pos = pos + 1
-	}
-	//create span
-	span = "<span tts:backgroundColor=\"transparent\" tts:color=\"transparent\" xml:space=\"preserve\">" + input[:pos] + "</span>"
-	//update string
-	remaining = input[pos:]
-
-	return span, remaining
-}
-
-func getNextChar(inputtrimmed []byte, pos int) byte {
-	// creeps forward on the array but protects against running over the end I hope
-	if pos >= (len(inputtrimmed) - 1) {
-		return 0
-	}
-	return inputtrimmed[pos+1]
-}
-
-func reformatLine(input string, codepage string, fixedalignment bool) (string, error) {
-	res := ""
-	//res = res + "\n<!-- " + hex.EncodeToString([]byte(input)) + " -->\n"
-
-	backgroundColour := COLOUR_BLACK
-
-	//TODO clean this up to be more efficient, e.g. if first line has a colour, don't add the default etc
-	inputtrimmed := strings.ReplaceAll(input, "\b0a", "")       // end box
-	inputtrimmed = strings.ReplaceAll(inputtrimmed, "\b0b", "") // start box
-	inputtrimmed = strings.ReplaceAll(inputtrimmed, "\b0b", "") // normal height
-	inputtrimmed = strings.ReplaceAll(inputtrimmed, "\b0d", "") // double height
-	// replace all cr's with <br />
-	inputtrimmed = strings.ReplaceAll(inputtrimmed, "\b8a", "<br />") // CR/LF
-
-	//res = res + "<!-- " + hex.EncodeToString([]byte(inputtrimmed)) + " -->"
-
-	if len(inputtrimmed) < 1 {
-		return "", nil
-	}
-
-	// deal with no justification and leading spaces here?
-	// only if the alignment is unset AND there are leading spaces
-	prefixspan := ""
-	if fixedalignment && inputtrimmed[0] == 0x20 {
-		//fmt.Println(hex.EncodeToString([]byte(inputtrimmed)) + inputtrimmed)
-
-		// add in a span with transparent background
-		prefixspan, inputtrimmed = getLeadingSpaces(inputtrimmed)
-	}
-
-	// loop by character and work out when to turn on and off spans
-	spanOn := false
-	accented := byte(0)
-	for idx, bt := range []byte(inputtrimmed) {
-		//bt := byte(ch)
-		//res = res + "<!-- " + string(bt) + " > " + hex.EncodeToString([]byte{bt}) + "-->"
-
-		// deal with accented chars
-		if accented > 0 {
-			// get the char using the char + accent
-			newchar, err := GetAccentedChar(accented, bt)
-			// reset the accent
-			accented = 0
-			if err != nil {
-				return "", err
-			}
-
-			res = res + XmlEscapeText(string(newchar))
-			continue
-		}
-
-		if bt < 32 {
-			// if next character is 0x1d (New Background, then this is actually setting the background)
-			//background colours
-			if getNextChar([]byte(inputtrimmed), idx) == 0x1d {
-				// is background
-				if bt == 0 {
-					backgroundColour = COLOUR_BLACK
-					continue
-				} else if bt == 1 {
-					backgroundColour = COLOUR_RED
-					continue
-				} else if bt == 2 {
-					backgroundColour = COLOUR_GREEN
-					continue
-				} else if bt == 3 {
-					backgroundColour = COLOUR_YELLOW
-					continue
-				} else if bt == 4 {
-					backgroundColour = COLOUR_BLUE
-					continue
-				} else if bt == 5 {
-					backgroundColour = COLOUR_MAGENTA
-					continue
-				} else if bt == 6 {
-					backgroundColour = COLOUR_CYAN
-					continue
-				} else if bt == 7 {
-					backgroundColour = COLOUR_WHITE
-					continue
-				}
-			}
-
-			// set foreground colour
-			if bt == 0 {
-				res = res + doSpansXml(spanOn, COLOUR_BLACK, backgroundColour)
-				spanOn = true
-			} else if bt == 1 {
-				res = res + doSpansXml(spanOn, COLOUR_RED, backgroundColour)
-				spanOn = true
-			} else if bt == 2 {
-				res = res + doSpansXml(spanOn, COLOUR_GREEN, backgroundColour)
-				spanOn = true
-			} else if bt == 3 {
-				res = res + doSpansXml(spanOn, COLOUR_YELLOW, backgroundColour)
-				spanOn = true
-			} else if bt == 4 {
-				res = res + doSpansXml(spanOn, COLOUR_BLUE, backgroundColour)
-				spanOn = true
-			} else if bt == 5 {
-				res = res + doSpansXml(spanOn, COLOUR_MAGENTA, backgroundColour)
-				spanOn = true
-			} else if bt == 6 {
-				res = res + doSpansXml(spanOn, COLOUR_CYAN, backgroundColour)
-				spanOn = true
-			} else if bt == 7 {
-				res = res + doSpansXml(spanOn, COLOUR_WHITE, backgroundColour)
-				spanOn = true
-			} else if bt == 0x1d {
-				// this is new page,
-				// docs say:In practice this control code will typically appear in a sequence of 3 control codes, the first control code (00 – 0F) will
-				// set a colour, the second control code (1D) will switch this colour to the background, and the final control code will set a
-				// new foreground colour
-				if configuration.Debug {
-					res = res + "<!-- surpessing 0x1d - New background  -->"
-				}
-			} else if bt == 0x1c {
-				// this is Black background (1,2), which I don't believe is relevant here but maybe wrong
-				if configuration.Debug {
-					res = res + "<!-- surpessing 0x1c - Black background (1,2)  -->"
-				}
-			} else if (bt == 0x09) || (bt == 0x08) {
-				fmt.Println("WARN: Flash is not supported so ignoring control code [" + hex.EncodeToString([]byte{bt}) + "] ")
-				if configuration.Debug {
-					fmt.Println("DEBUG: cue text: " + input)
-				}
-			} else {
-				fmt.Println("ERROR: unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
-				return "", errors.New("ttmlgenerate.reformatLine raised unhandled error - unhandled control character  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
-			}
-		} else {
-			if (idx == 0) && (!spanOn) {
-				res = res + doSpansXml(spanOn, COLOUR_WHITE, COLOUR_BLACK)
-				spanOn = true
-			}
-			if bt > 126 {
-				// if 0xC? then is dual byte accente
-				if (bt >= 0xc0) && (bt <= 0xcf) {
-					// set accented char
-					accented = bt
-					// get the next char to get actual char
-					// skip forward
-					continue
-				}
-
-				// get extended characters
-				char, err := ebustl.GetCodePageCharacter(codepage, bt)
-				if err != nil {
-					return "", errors.New("unexpected character -  [" + hex.EncodeToString([]byte{bt}) + "] " + input)
-				}
-				res = res + XmlEscapeText(char)
-			} else {
-				// encode the char
-				res = res + XmlEscapeText(string(bt))
-			}
-		}
-	}
-	if spanOn {
-		res = res + addSpace() + "</span> "
-	}
-	return prefixspan + res, nil
-}
-
-func getTextField(b []byte) string {
-	// get up until the first 0x8f
-	tmp := string(b[:])
-	i := strings.Index(tmp, "\x8f")
-	//TODO fix extenmsion block > 1
-	// I think this is fixed now, can remove?
-	if i < 0 {
-		//fmt.Println(hex.EncodeToString(b))
-		fmt.Println("WARN: no 0x8f found so assume end of line")
-		return tmp[:]
-	}
-	return tmp[:i]
-}
-
-func isPrintableChar(achar rune) bool {
-	// ref tech3264.pdf
-	// section 5 character code tables
-	if (achar >= 0x20) && (achar <= 0x7f) {
-		// valid char
-		return true
-	}
-	if (achar >= 0xa1) && (achar <= 0xff) {
-		// valid char
-		return true
-	}
-	return false
-}
-
-func getLineLengthAndPad(line string, chars_width *int, chars_pad *int) {
-	// calculate the values for this line
-	tmp_width := 0
-	tmp_path := 40
-
-	tmp_width = len(line)
-
-	for inc, achar := range line {
-		if isPrintableChar(achar) {
-			tmp_path = inc
-			break
-		}
-	}
-
-	// only update chars_width if > existing value
-	if tmp_width > *chars_width {
-		*chars_width = tmp_width
-	}
-
-	if *chars_pad < tmp_path {
-		*chars_pad = tmp_path
-	}
-
-}
-
-func getRegionForJustification(justificationCode byte, chars_width int, chars_pad int) (int, int) {
-	//calculate the actual pad and width considering the justification option
-
-	if justificationCode == 1 {
-		// left
-		return chars_pad, chars_width
-	} else if justificationCode == 2 {
-		// center
-		tmp := (TELETEXT_WIDTH - chars_width) / 2
-		return tmp, chars_width
-	} else if justificationCode == 3 {
-		//right
-		return TELETEXT_WIDTH - chars_width, chars_width
-	}
-
-	// assume unset == space padded
-	return chars_pad, chars_width
-}
-
-func getSubtitlePara(tti ebustl.Tti, codepage string, fixedalignment bool) (string, int, int, int, error) {
-	// returns
-	// 		xml for the paragraph
-	//		row count
-	//		left padding
-	//		char count (including code chars)
-	//		error
-	/*
-		the CR/LF indicator, used to initiate the second and subsequent rows of the subtitle display, is conveyed by character code 8Ah;
-		the Text Field of the last TTI block of a subtitle must always terminate with code 8Fh;
-		unused space in the Text Field will be set to 8Fh.
-	*/
-	// get raw TextField until 0x8F
-	textfield := getTextField(tti.ExtendedTextField[:])
-
-	// deduplicate some codes if double height
-	if strings.Contains(textfield, "\x0d") {
-		//doubleHeight = true
-		// change start box to 1
-		textfield = strings.Replace(textfield, "\x0b\x0b", "\x0b", -1)
-		// change end box to 1
-		textfield = strings.Replace(textfield, "\x0a\x0a", "\x0a", -1)
-		// change STL CR to 1
-		textfield = strings.Replace(textfield, "\x8a\x8a", "\x8a", -1)
-	}
-
-	// we need to split into rows
-	lines := strings.Split(textfield, "\x8a")
-
-	// track total char with
-	chars_width := 0 // this one we care about the largest
-	chars_pad := 0
-	res := ""
-	for _, y := range lines {
-		line := y
-
-		// count the pad chars
-		// count the length
-		//res = res + "<!-- " + hex.EncodeToString([]byte(line)) + " -->"
-		getLineLengthAndPad(line, &chars_width, &chars_pad)
-
-		// ignore the start / end markers / double height
-		line = strings.Replace(line, "\x0d", "", -1)
-		line = strings.Replace(line, "\x0a", "", -1)
-		line = strings.Replace(line, "\x0b", "", -1)
-		//getLineLengthAndPad(line, &chars_pad, &chars_width)
-		reformatted_line, err := reformatLine(line, codepage, fixedalignment)
-		if err != nil {
-			return "", 0, 0, 0, err
-		}
-		res = res + reformatted_line + "<br />"
-	}
-
-	// kludge, trim last <br />
-	res = strings.TrimSuffix(res, "<br />")
-
-	// calculate the actual pad and width considering the justification option
-	chars_pad, chars_width = getRegionForJustification(tti.JustificationCode, chars_width, chars_pad)
-	return res, len(lines), chars_pad, chars_width, nil
 }
 
 func divmod(numerator, denominator int64) (quotient, remainder int64) {
@@ -691,96 +373,157 @@ func FramesToTcMs(frames int64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", hr, mn, sc, ms)
 }
 
-func getSubtitle(tti ebustl.Tti, codepage string, addId bool) (*TTMLOutSubtitle, string, error) {
-	/*
+func getSubtitlePara(txtraster ebustl.TeletextRaster, fixedalignment bool, configuration TtmlConvertConfiguration) (string, int, int, int, error) {
+	// returns
+	// 		xml for the paragraph
+	//		row count
+	//		left padding
+	//		char count (including code chars)
+	//		error
 
-			target
+	tmpSpans := []SpanOrLineBreak{}
 
-		      <p begin="00:34:41.920" end="00:34:44.120" region="region-181" tts:fontSize="200%" tts:lineHeight="120%" tts:textAlign="right">
-		        <span tts:backgroundColor="#000000" tts:color="#FFFFFF">NIGEL:<br></br></span>
-		        <span tts:backgroundColor="#000000" tts:color="#00FF00">&#39;Four? But I only have three
-		          chairs.</span>
-		      </p>
+	// loop the active lines
+	last_pixel := ebustl.TeletextPixel{
+		ForegroundColour: "",
+		BackgroundColour: "",
+	}
+	for row_index, row := range txtraster.Lines {
+		if row.ActiveLine {
 
-				Textfield
-				0D 07 0B 0B 4E 49 47 45 4C 3A 0A 0A 8A 8A 0D 02
-				0B 0B 27 46 6F 75 72 3F 20 42 75 74 20 49 20 6F
-				6E 6C 79 20 68 61 76 65 20 74 68 72 65 65 20 63
-				68 61 69 72 73 2E 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F
-				8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F
-				8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F
-				8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F 8F
+			current_span := SpanOrLineBreak{}
+			if fixedalignment {
+				// build in the padding
 
-				0D (double height)
-				07 (alpha white)  <<< starts the span?
-				0B (start box)
-				0B (start box)
-				4E N
-				49 i
-				47 g
-				45 e
-				4C l
-				3A :
-				0A (end box)
-				0A (end box)
-				8A (cr)
-				8A (cr)
-				0D (double height)
-				02 (alpha green)    <<< starts the span? end previous span
-				0B (start box)
-				0B (start box)
-				27 '
-				46 F
-				6F o
-				75 u
-				72 r
-				3F ?
-				20 (space)
-				42 B
-				75 u
-				74 t
-				20 (space)
-				49 I
-				20 (space)
-				6F o
-				6E n
-				6C l
-				79 y
-				20 (space)
-				68 h
-				61 a
-				76 v
-				65 e
-				20 (space)
-				74 t
-				68 h
-				72 r
-				65 e
-				65 e
-				20 (space)
-				63 c
-				68 h
-				61 a
-				69 i
-				72 r
-				73 s
-				2E .
-				8F ( the Text Field of the last TTI block of a subtitle must always terminate with code 8Fh )
-				8F 8F 8F 8F 8F 8F 8F 8F 8F ( unused space in the Text Field will be set to 8Fh. )
+				// check against negative repeat
+				if row.StartBoxIndex > 0 {
+					aspan := SpanOrLineBreak{
+						IsPadding:     true,
+						ContentString: strings.Repeat(" ", row.StartBoxIndex-1),
+					}
+					tmpSpans = append(tmpSpans, aspan)
+				}
+			}
 
-				black background assumed at start of each row
+			// do actual content
+			if configuration.Debug {
+				log.Debugf("ROW %d, row.StartBoxIndex %d, row.EndBoxIndex %d\n", row_index, row.StartBoxIndex, row.EndBoxIndex)
+			}
+			// try to detect the odd box only ones
+			if row.StartBoxIndex < 0 {
+				log.Warn("The start end box is not defined")
+				// try to find the newbackground ?
+			}
+			if configuration.Debug {
+				log.Debugf("row.EndBoxIndex = %d", row.EndBoxIndex)
+			}
+			truncated_endboxindex := row.EndBoxIndex
+			if truncated_endboxindex > TELETEXT_WIDTH+4 {
+				truncated_endboxindex = TELETEXT_WIDTH + 4
+				log.Warn("row.EndBoxIndex truncated")
+			}
+			for pixel_index := row.StartBoxIndex; pixel_index < truncated_endboxindex; pixel_index++ {
+				this_pixel := row.Pixels[pixel_index]
+				if configuration.Debug {
+					log.Debug(this_pixel.ToString())
+				}
+				if !this_pixel.IsVisibleChar {
+					current_span.ContentString = current_span.ContentString + " "
+					//continue
+				}
 
-				we then use the justification info + character counts to determine the region for the sub
-	*/
+				// check for colour change
+				if last_pixel.BackgroundColour != this_pixel.BackgroundColour || last_pixel.ForegroundColour != this_pixel.ForegroundColour {
+					// save the old one
+					if current_span.BackgroundColour != "" && current_span.ForegroundColour != "" {
+						tmpSpans = append(tmpSpans, current_span)
+					}
+					// create a new span
+					current_span = SpanOrLineBreak{
+						ForegroundColour: this_pixel.ForegroundColour,
+						BackgroundColour: this_pixel.BackgroundColour,
+					}
+				}
 
-	// deal with no justification and leading spaces here?
-	sub_para, rows, left_pad, char_count, err := getSubtitlePara(tti, codepage, (tti.JustificationCode == 0))
+				current_span.ContentString = current_span.ContentString + this_pixel.Character
+
+				// reset last pixel
+				last_pixel = this_pixel
+			}
+
+			if current_span.BackgroundColour != "NONE" && current_span.ForegroundColour != "NONE" {
+				tmpSpans = append(tmpSpans, current_span)
+			}
+
+			abreak := SpanOrLineBreak{
+				IsLineBreak: true,
+			}
+			tmpSpans = append(tmpSpans, abreak)
+		}
+	}
+
+	// remove the last <br />
+	if len(tmpSpans) > 0 {
+		if tmpSpans[len(tmpSpans)-1].IsLineBreak {
+			tmpSpans = tmpSpans[:len(tmpSpans)-1]
+		}
+	}
+
+	res := NormalisedPara{
+		SpansAndBreaks: []SpanOrLineBreak{},
+	}
+
+	// sanity check that there are no spans with missing foreground / background (caused by trailing new colour)
+	for _, span := range tmpSpans {
+		if (span.BackgroundColour == "" || span.ForegroundColour == "") && !span.IsLineBreak && !span.IsPadding && strings.TrimSpace(span.ContentString) == "" {
+			log.Warn("getSubtitlePara: sanity check removing empty span (trailing new colour?)")
+		} else {
+			res.SpansAndBreaks = append(res.SpansAndBreaks, span)
+		}
+	}
+
+	// convert spans to XML
+	res_string, err := res.ConvertToXML()
 	if err != nil {
+		log.Error("getSubtitlePara raised error converting to XML")
+		return "", -1, -1, -1, err
+	}
+
+	row_count := txtraster.ActiveLineCount
+	left_pad := 0                // is this right //TODO
+	char_count := TELETEXT_WIDTH // is this right //TODO
+	return res_string, row_count, left_pad, char_count, nil
+}
+
+func getSubtitle(tti ebustl.Tti, codepage string, addId bool, configuration TtmlConvertConfiguration) (*TTMLOutSubtitle, string, error) {
+
+	// convert to a teletext raster
+	ttxtraster, err := ebustl.CreateTeletextRasterFromTti(tti, codepage, configuration.TruncateOversizedLines, configuration.Debug, configuration.IgnoreInvalidDiacritical)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if ttxtraster.ActiveLineCount < 0 && ttxtraster.FirstActiveLine < 0 {
+		log.Warn("Skipping a TTI as it contains no date")
+		return nil, "", nil
+	}
+
+	if configuration.Debug {
+		log.Debug(ttxtraster.PrintToConsole())
+	}
+
+	// convert the raster to paragraphs
+	sub_para, rows, left_pad, char_count, err := getSubtitlePara(*ttxtraster, (tti.JustificationCode == 0), configuration)
+	if configuration.Debug {
+		log.Debugf("sub_para = %#v\n", sub_para)
+	}
+	if err != nil {
+		log.Error("getSubtitle raised error for subtitle cue " + tti.TimeCodeInRendered)
 		return nil, "", err
 	}
 	region := "region." + strconv.Itoa(int(tti.VerticalPosition)) + "." + strconv.Itoa(rows) + "." + strconv.Itoa(left_pad) + "." + strconv.Itoa(char_count)
 
-	ttsTextAlign := "left"
+	ttsTextAlign := "left" // none is covered here (tti.JustificationCode == 0) too
 	if tti.JustificationCode == 1 {
 		ttsTextAlign = "left"
 	} else if tti.JustificationCode == 2 {
@@ -827,7 +570,7 @@ func (t *TTMLOut) debugShuffleTimeCodes() {
 
 func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfiguration) (string, error) {
 
-	configuration = *config
+	//configuration = *config
 
 	// merge TTI's - where a cue is split over multiple TTI's convert to just one
 	stlmerged, err := stl.MergeExtensionBlocksTtis()
@@ -861,7 +604,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	//res.XMLNamespaceEbuTt = "urn:ebu:tt:style"
 
 	res.Lang = getxmlLanguageCode(stl.Gsi.LanguageCode)
-	res.CellRsolution = configuration.CellRsolution
+	res.CellRsolution = config.CellRsolution
 
 	res.Head.Metadata = &TTMLOutMetadata{}
 	res.Head.Metadata.Title = stlmerged.Gsi.OriginalProgrammeTitle
@@ -871,7 +614,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	res.Head.Styles = append(res.Head.Styles, fixedStyles[:]...)
 
 	res.Head.Regions = []TTMLOutRegion{}
-	res.Head.Regions = append(res.Head.Regions, getTtmlDefaultRegions(configuration.Debug)...)
+	res.Head.Regions = append(res.Head.Regions, getTtmlDefaultRegions(config.Debug)...)
 
 	res.Body.Style = "ttmlStyle"
 
@@ -882,16 +625,19 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	for _, aTti := range stlmerged.Ttis {
 		if aTti.CommentFlag != 1 {
 			// add a para
-			para, region, err := getSubtitle(aTti, stlmerged.Gsi.CharacterCodeTable, configuration.AddId)
+			para, region, err := getSubtitle(aTti, stlmerged.Gsi.CharacterCodeTable, config.AddId, *config)
 			if err != nil {
+				log.Errorf("error in CreateTtml for cue incode %s, error %s", aTti.TimeCodeInRendered, err.Error())
 				return "", err
 			}
-			res.Body.Div.Subtitles = append(res.Body.Div.Subtitles, *para)
+			if para != nil {
+				res.Body.Div.Subtitles = append(res.Body.Div.Subtitles, *para)
 
-			// kludge way to have unique region slice
-			regions[region] = true
+				// kludge way to have unique region slice
+				regions[region] = true
+			}
 		} else {
-			fmt.Printf("INFO: Skipping a comment cue - ID %s \n", aTti.TimeCodeInRendered)
+			log.Infof("INFO: Skipping a comment cue - ID %s \n", aTti.TimeCodeInRendered)
 		}
 	}
 
@@ -901,11 +647,13 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	}
 
 	// debug shuffle timecodes only
-	if configuration.ShuffleTimes {
+	if config.ShuffleTimes {
 		res.debugShuffleTimeCodes()
 	}
 
-	barrayRes, err := xml.MarshalIndent(res, "", "   ")
+	//	barrayRes, err := xml.MarshalIndent(res, "", "   ")
+	barrayRes, err := xml.Marshal(res)
+
 	barrayRes = []byte(xml.Header + string(barrayRes))
 
 	//stlmerged.DebugPrint()
