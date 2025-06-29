@@ -16,7 +16,7 @@ import (
 const STL_FILE_MATCH = "*.[sS][tT][lL]" // to ensure case sensitivity for stl
 const TTML_EXT = ".ttml"
 const CONFIG_FILE = "stl-to-ttml-run-always.json"
-const VERSION_INFO = "1.0.1"
+const VERSION_INFO = "1.1.0"
 
 func processAfile(sourcefilepath string, outputfilepath string, debug bool) error {
 	log.Println("=============================================================")
