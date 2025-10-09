@@ -2,7 +2,9 @@ package ttmlgenerate
 
 import (
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/filehandler"
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -562,4 +564,34 @@ func Test13(t *testing.T) {
 	fmt.Println(ttmlsub.ToString())
 	fmt.Println(region)
 	//fmt.Printf("row_count=%d, left_padding=%d, char_count=%d", row_count, left_padding, char_count)
+}
+
+func ReadFile(filepath string) (*[]byte, error) {
+	v, err := os.ReadFile(filepath)
+	return &v, err
+}
+
+func TestFileVera(t *testing.T) {
+	test_file := `E:\projects\golang\ebustl-to-ttml\testfiles\0t0bmh6_ENG.stl`
+	outputfilepath := `E:\projects\golang\ebustl-to-ttml\testfiles\0t0bmh6_ENG.imsc1.xml`
+
+	stl_payload, err := ReadFile(test_file)
+	if err != nil {
+		t.Fatalf("ERROR: " + err.Error())
+	}
+	stl, err := ebustl.ReadStlPayload(*stl_payload)
+	if err != nil {
+		t.Fatalf("ERROR: " + err.Error())
+	}
+	config := TtmlConvertConfigurationDefault()
+	config.PreserveSpaces = true
+	config.Debug = true
+	comment := "Test EBU"
+	ttml, err := CreateTtml(*stl, comment, &config)
+	if err != nil {
+		t.Fatalf("ERROR: " + err.Error())
+	}
+
+	filehandler.WriteFile(outputfilepath, []byte(ttml))
+
 }

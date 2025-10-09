@@ -651,8 +651,8 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 		res.debugShuffleTimeCodes()
 	}
 
-	//	barrayRes, err := xml.MarshalIndent(res, "", "   ")
-	barrayRes, err := xml.Marshal(res)
+	barrayRes, err := xml.MarshalIndent(res, "", "   ")
+	//barrayRes, err := xml.Marshal(res)
 
 	barrayRes = []byte(xml.Header + string(barrayRes))
 
