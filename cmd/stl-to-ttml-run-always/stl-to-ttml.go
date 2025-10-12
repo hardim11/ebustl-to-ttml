@@ -2,6 +2,7 @@ package main
 
 import (
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/ebuttdgenerate"
 	filehandler "ebustl-to-ttml/internal/filehandler"
 	ttmlgenerate "ebustl-to-ttml/internal/ttmlgenerate"
 	"errors"
@@ -18,7 +19,7 @@ const TTML_EXT = ".ttml"
 const CONFIG_FILE = "stl-to-ttml-run-always.json"
 const VERSION_INFO = "1.1.0"
 
-func processAfile(sourcefilepath string, outputfilepath string, debug bool) error {
+func processAfile(sourcefilepath string, outputfilepath string, outputEbuTtD bool, debug bool) error {
 	log.Println("=============================================================")
 	log.Println("=== Processing " + sourcefilepath + " ===")
 	stl, err := ebustl.ReadStlFile(sourcefilepath)
@@ -32,23 +33,39 @@ func processAfile(sourcefilepath string, outputfilepath string, debug bool) erro
 	log.Printf("number of subtitles = %d\n", stl.Gsi.TotalNumberTtiBlocksInt)
 	currentTime := time.Now()
 
-	comment := fmt.Sprintf("Matt's Golang app version %s\nsource file=%s\nat %s\nHostname: %s\n",
+	comment := fmt.Sprintf("Matt's Golang app version %s\nsource file=%s\nat %s\nHostname: %s\nEBU-TT-D: %t",
 		VERSION_INFO,
 		sourcefilepath,
 		currentTime.String(),
 		getHostname(),
+		outputEbuTtD,
 	)
 
-	config := ttmlgenerate.TtmlConvertConfigurationDefault()
-	config.PreserveSpaces = true
-	config.Debug = debug
-	ttml, err := ttmlgenerate.CreateTtml(*stl, comment, &config)
-	if err != nil {
-		log.Println(err.Error())
-		return err
+	outputstring := ""
+
+	if outputEbuTtD {
+		// do EBU-TT-D
+		config := ebuttdgenerate.EbuTtDConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		config.Debug = debug
+		outputstring, err = ebuttdgenerate.CreateTtml(*stl, comment, &config)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+	} else {
+		// IMSC 1
+		config := ttmlgenerate.TtmlConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		config.Debug = debug
+		outputstring, err = ttmlgenerate.CreateTtml(*stl, comment, &config)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
 	}
 
-	err = filehandler.WriteFile(outputfilepath, []byte(ttml))
+	err = filehandler.WriteFile(outputfilepath, []byte(outputstring))
 	if err != nil {
 		log.Println("ERROR failed to write output file")
 		return err
@@ -82,7 +99,7 @@ func folderScan(config serviceConfig) error {
 		move_to_filepath := filepath.Join(config.ProcessedFolder, afile)
 		failed_filepath := filepath.Join(config.FailedFolder, afile)
 		log.Println(outputfilepath)
-		err := processAfile(sourcefilepath, outputfilepath, config.Debug)
+		err := processAfile(sourcefilepath, outputfilepath, config.OutputEbuTtD, config.Debug)
 		if err != nil {
 			// oh dear things did not go well
 			if config.StopOnError {

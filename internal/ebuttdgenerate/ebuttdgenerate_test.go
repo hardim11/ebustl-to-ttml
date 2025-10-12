@@ -596,7 +596,7 @@ func TestFile1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ERROR: " + err.Error())
 	}
-	config := TtmlConvertConfigurationDefault()
+	config := EbuTtDConvertConfigurationDefault()
 	config.PreserveSpaces = true
 	config.Debug = true
 	comment := "Test EBU with source file " + test_file
@@ -621,7 +621,7 @@ func TestFileVera(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ERROR: " + err.Error())
 	}
-	config := TtmlConvertConfigurationDefault()
+	config := EbuTtDConvertConfigurationDefault()
 	config.PreserveSpaces = true
 	config.Debug = true
 	comment := "Test EBU with source file " + test_file

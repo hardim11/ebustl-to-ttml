@@ -2,13 +2,14 @@ package subtitleediting
 
 import (
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/ebuttdgenerate"
 	"ebustl-to-ttml/internal/filehandler"
 	"ebustl-to-ttml/internal/ttmlgenerate"
 	"fmt"
 )
 
 // need to support both conform and split operations
-func ConformJob(job_file_path string) error {
+func ConformJob(job_file_path string, outputEbuTtD bool) error {
 	// decode job
 	job, err := ConformJobRequestDeserialisefile(job_file_path)
 	if err != nil {
@@ -59,13 +60,25 @@ func ConformJob(job_file_path string) error {
 
 	// convert to TTML
 	comment := "Conform of " + stl.Gsi.OriginalProgrammeTitle
-	config := ttmlgenerate.TtmlConvertConfigurationDefault()
-	config.PreserveSpaces = true
+
 	//config.Debug = true
-	ttml, err := ttmlgenerate.CreateTtml(conformed_stl, comment, &config)
-	if err != nil {
-		fmt.Println(err.Error())
-		return err
+	ttml := ""
+	if outputEbuTtD {
+		config := ebuttdgenerate.EbuTtDConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		ttml, err = ebuttdgenerate.CreateTtml(conformed_stl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+	} else {
+		config := ttmlgenerate.TtmlConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		ttml, err = ttmlgenerate.CreateTtml(conformed_stl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
 	}
 
 	filehandler.WriteFile(job.OutputFilePath, []byte(ttml))
@@ -74,7 +87,7 @@ func ConformJob(job_file_path string) error {
 	return nil
 }
 
-func createPartFile(stl ebustl.EbuStl, part Part) error {
+func createPartFile(stl ebustl.EbuStl, part Part, outputEbuTtD bool) error {
 
 	fmt.Println("=============================================================")
 	fmt.Println("=== Processing incode=" + part.TimecodeStart + ", outcode=" + part.OutputFilePath + " ===")
@@ -90,13 +103,25 @@ func createPartFile(stl ebustl.EbuStl, part Part) error {
 
 	// convert to TTML
 	comment := "Part of " + stl.Gsi.OriginalProgrammeTitle + ", incode=" + part.TimecodeStart + ", outcode=" + part.OutputFilePath
-	config := ttmlgenerate.TtmlConvertConfigurationDefault()
-	config.PreserveSpaces = true
-	//config.Debug = true
-	ttml, err := ttmlgenerate.CreateTtml(*partStl, comment, &config)
-	if err != nil {
-		fmt.Println(err.Error())
-		return err
+	ttml := ""
+	if outputEbuTtD {
+		config := ebuttdgenerate.EbuTtDConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		//config.Debug = true
+		ttml, err = ebuttdgenerate.CreateTtml(*partStl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+	} else {
+		config := ttmlgenerate.TtmlConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		//config.Debug = true
+		ttml, err = ttmlgenerate.CreateTtml(*partStl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
 	}
 
 	outputfilepath := part.OutputFilePath
@@ -108,7 +133,7 @@ func createPartFile(stl ebustl.EbuStl, part Part) error {
 }
 
 // need to support both conform and split operations
-func PartJob(job_file_path string) error {
+func PartJob(job_file_path string, outputEbuTtD bool) error {
 	// decode job
 	job, err := SplitJobDeserialisefile(job_file_path)
 	if err != nil {
@@ -130,7 +155,7 @@ func PartJob(job_file_path string) error {
 
 	// for each part
 	for _, aPart := range job.Parts {
-		err := createPartFile(*stlmerged, aPart)
+		err := createPartFile(*stlmerged, aPart, outputEbuTtD)
 		if err != nil {
 			return err
 		}

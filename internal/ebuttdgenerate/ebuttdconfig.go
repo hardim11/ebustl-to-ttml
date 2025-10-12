@@ -10,7 +10,7 @@ type EbuTtDConvertConfiguration struct {
 	IgnoreInvalidDiacritical bool
 }
 
-func TtmlConvertConfigurationDefault() EbuTtDConvertConfiguration {
+func EbuTtDConvertConfigurationDefault() EbuTtDConvertConfiguration {
 	return EbuTtDConvertConfiguration{
 		PreserveSpaces:           false,
 		AddId:                    false,

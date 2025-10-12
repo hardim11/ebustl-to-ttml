@@ -3,6 +3,7 @@ package ebuttdgenerate
 import (
 	"bytes"
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/ptr"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
@@ -28,8 +29,6 @@ const TELETEXT_WIDTH = 40
 const TTS_FONTSIZE = "160%"
 const TTS_LINEHEIGHT = "120%"
 
-//var configuration TtmlConvertConfiguration
-
 type RegionStruct struct {
 	LineNumber int
 	RowCount   int
@@ -38,14 +37,14 @@ type RegionStruct struct {
 }
 
 type SpanOrLineBreak struct {
-	IsLineBreak bool
-	IsPadding   bool
-	//PreserveSpace    bool //TODO should I keep this and use for internal padding?
+	IsLineBreak      bool
+	IsPadding        bool
 	BackgroundColour string
 	ForegroundColour string
 	ContentString    string
 	SpanStyle        string
 	DebugNotes       []string
+	//PreserveSpace    bool //TODO should I keep this and use for internal padding?
 }
 
 func SpanOrLineBreakNew() SpanOrLineBreak {
@@ -92,7 +91,7 @@ func (n *NormalisedPara) TrimSpacesWithBr(input string) string {
 }
 
 func (n *NormalisedPara) ConvertToXMLEbuTtD() (string, error) {
-	res := ""
+	res := "\n"
 	for _, y := range n.SpansAndBreaks {
 		if y.IsLineBreak {
 			res = res + "<br />"
@@ -122,22 +121,15 @@ func DebugPrintByteArrray(byteArry []byte) string {
 func getTtmlDefaultStyle() []EbuTtDOutStyle {
 	res := []EbuTtDOutStyle{}
 	// defaultStyle
-	dTMLFontFamily := "monospaceSansSerif" // "proportionalSansSerif, SansSerif, default"
-	dFontStyle := "normal"
-	dTextAlign := "left"
-	dWrapOption := "noWrap"
-	dEbuLinePadding := "0.5c"
-
 	dStyleAttributes := StyleAttributes{
-		TTMLFontFamily:    &dTMLFontFamily,
-		TTMLFontStyle:     &dFontStyle,
-		TTMLTextAlign:     &dTextAlign,
-		TTMLWrapOption:    &dWrapOption,
-		EbuTtsLinePadding: &dEbuLinePadding,
+		TTMLFontFamily:    ptr.String("monospaceSansSerif"), // "proportionalSansSerif, SansSerif, default"
+		TTMLFontStyle:     ptr.String("normal"),
+		TTMLTextAlign:     ptr.String("left"),
+		TTMLWrapOption:    ptr.String("noWrap"),
+		EbuTtsLinePadding: ptr.String("0.5c"),
 	}
 	var ttmlTextStyle = EbuTtDOutStyle{EbuTtDOutHeader: EbuTtDOutHeader{
-		ID: "defaultStyle",
-		//Style:                    "speakerStyle",
+		ID:                       "defaultStyle",
 		EbuTtDOutStyleAttributes: ebuTtDOutStyleAttributesFromStyleAttributes(&dStyleAttributes),
 	}}
 	res = append(res, ttmlTextStyle)
@@ -149,14 +141,12 @@ func getTtmlDefaultRegions(debug_region bool) []EbuTtDOutRegion {
 	res := []EbuTtDOutRegion{}
 
 	if debug_region {
-		regionDebugExtent := "80% 16.67%"
-		regionDebugOrigin := "10% 79.17%"
 		regiondebug := EbuTtDOutRegion{
 			EbuTtDOutHeader: EbuTtDOutHeader{
 				ID: "debug_region",
 				EbuTtDOutStyleAttributes: EbuTtDOutStyleAttributes{
-					Extent: &regionDebugExtent,
-					Origin: &regionDebugOrigin,
+					Extent: ptr.String("80% 16.67%"),
+					Origin: ptr.String("10% 79.17%"),
 				},
 			},
 			Comment: "this is only for debugging use",
@@ -293,10 +283,8 @@ func getEbuTtDStles(style_id string) (*EbuTtDOutStyle, error) {
 		}
 	} else if strings.HasPrefix(style_id, "stylep") {
 		// do a paragraph
-		foo1 := TTS_FONTSIZE
-		res.FontSize = &foo1
-		foo2 := TTS_LINEHEIGHT
-		res.LineHeight = &foo2
+		res.FontSize = ptr.String(TTS_FONTSIZE)
+		res.LineHeight = ptr.String(TTS_LINEHEIGHT)
 
 		// do alignment based on centring
 		if len(parts) >= 2 {
@@ -648,6 +636,9 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *EbuTtDConvertConfigur
 	barrayRes = []byte(xml.Header + string(barrayRes))
 
 	//stlmerged.DebugPrint()
+
+	//tmp := string(barrayRes)
+	//tmp = strings.TrimSpace(xmlfmt.FormatXML(tmp, "", "  "))
 
 	return string(barrayRes), err
 }
