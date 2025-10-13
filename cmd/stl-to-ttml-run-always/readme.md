@@ -13,9 +13,12 @@ The application requires a JSON file called "stl-to-ttml-run-always.json" locate
 	"FailedFolder": "\\\\pc7\\video_share\\ITV\\subtitles\\failed",
 	"ScanIntervalSeconds": 10,
 	"StopOnError": false,
-	"Debug": false
+	"Debug": false,
+	"OutputEbuTtD": false
 }
 ```
+If `OutputEbuTtD` is set to true, the output is EBU-TT-D compliant.
+
 Hopefully the fields are self-explanatory. Normally "StopOnError" and "Debug" would be set to false. Beware that windows paths will include the "\\" charcter which will need to be escaped with another "\\" e.g. "\\\\".
 
 ## Compiling the executable
