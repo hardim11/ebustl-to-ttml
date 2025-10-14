@@ -13,6 +13,7 @@ type serviceConfig struct {
 	ScanIntervalSeconds int
 	StopOnError         bool
 	Debug               bool
+	OutputEbuTtD        bool
 }
 
 func read_config(file_path string) (*serviceConfig, error) {

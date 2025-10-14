@@ -39,16 +39,23 @@ I've rendered this using preserved space to look like this (in the excellent [IM
 using the XML block
 
 ```
-<p begin="10:03:52.280" end="10:03:54.760" region="region.1.2.1.25" tts:fontSize="200%" tts:lineHeight="120%" tts:textAlign="left"><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">     </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> SHEEP BAA </span> <br /><span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">            </span><span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> Oh, for... </span> </p>
+<p begin="10:03:52.280" end="10:03:54.760" region="region.1.2.1.25" tts:fontSize="200%" tts:lineHeight="120%" tts:textAlign="left">
+  <span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">     </span>
+  <span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> SHEEP BAA </span>
+  <br />
+  <span tts:backgroundColor="transparent" tts:color="transparent" xml:space="preserve">            </span>
+  <span tts:backgroundColor="#000000" tts:color="#FFFFFF" xml:space="preserve"> Oh, for... </span>
+</p>
 ```
 
 Additionally, I really struggled with how to parse the control characters, the EBU STL format uses a collection of control characters to format the Cues (e.g. to change the colour) but also to provide accented characters. This, coupled with the "Double Height" of teletext subtitles did mean I used some assumptions, which I hope are valid.
 
 ## Code
-There are 2 packages;
+There are 3 packages;
 
 * ebustl - a very basic STL reader, it does not manipulate the subtitles, rather just reads the file to structures processing later.
 * ttmlgenerate - this is where the interpretation of the Cues is performed and where all the styling is applied.
+* ebuttdgenerate - same as the ttmlgenerate but with EBU TT D compliant subs
 
 A very basic command line app is included in ./cmd/stl-to-ttlml
 
@@ -57,6 +64,9 @@ A very basic command line app is included in ./cmd/stl-to-ttlml
 
     cd ./cmd/stl-to-ttml/
     go build ./stl-to-ttml.go
+
+### Options
+`-ebuttd=true` - outputs EBU-TT-D compliant subs, otherwise is IMSC1
 
 ### Modes of operation
 The CLI supports 4 modes of operation
@@ -223,6 +233,9 @@ Similar to the split mode, you run a conform job by pointing the CLI at the JSON
 * 1.1.0 - new render approach;
 	* rewrite of render process to separate the Teletext decode from the TTML encode due to formatting issues observed. 
 	* increased dubugging output
+* 1.2.0 
+    * added EBU-TT-D output compliant option
+    *  removed unusued styles and regions from ISMC1 version
 
 ## Credits
 * as well are copying and editing [Quentin Renard's go-astisub project](https://github.com/asticode/go-astisub)

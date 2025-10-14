@@ -2,6 +2,7 @@ package main
 
 import (
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/ebuttdgenerate"
 	filehandler "ebustl-to-ttml/internal/filehandler"
 	subtitleediting "ebustl-to-ttml/internal/subtitleediting"
 	ttmlgenerate "ebustl-to-ttml/internal/ttmlgenerate"
@@ -16,7 +17,7 @@ import (
 
 const STL_EXT = "stl"
 
-func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds int, debug bool) error {
+func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds int, outputEbuTtD bool, debug bool) error {
 	fmt.Println("=============================================================")
 	fmt.Println("=== Processing " + sourcefilepath + " ===")
 	stl, err := ebustl.ReadStlFile(sourcefilepath)
@@ -35,16 +36,30 @@ func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds in
 	currentTime := time.Now()
 	comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
 
-	config := ttmlgenerate.TtmlConvertConfigurationDefault()
-	config.PreserveSpaces = true
-	config.Debug = debug
-	ttml, err := ttmlgenerate.CreateTtml(*stl, comment, &config)
-	if err != nil {
-		fmt.Println(err.Error())
-		return err
-	}
+	outputstring := ""
 
-	filehandler.WriteFile(outputfilepath, []byte(ttml))
+	if outputEbuTtD {
+		// do EBU-TT-D
+		config := ebuttdgenerate.EbuTtDConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		config.Debug = debug
+		outputstring, err = ebuttdgenerate.CreateTtml(*stl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+	} else {
+		// IMSC 1
+		config := ttmlgenerate.TtmlConvertConfigurationDefault()
+		config.PreserveSpaces = true
+		config.Debug = debug
+		outputstring, err = ttmlgenerate.CreateTtml(*stl, comment, &config)
+		if err != nil {
+			fmt.Println(err.Error())
+			return err
+		}
+	}
+	filehandler.WriteFile(outputfilepath, []byte(outputstring))
 	fmt.Println("=== Outfile " + outputfilepath + " ===")
 	fmt.Println("=============================================================")
 	return nil
@@ -59,7 +74,7 @@ func getHostname() string {
 	}
 }
 
-func folderScan(in_folder string, out_folder string, move_to string, offsetSeconds int, continueOnError bool, debug bool) error {
+func folderScan(in_folder string, out_folder string, move_to string, offsetSeconds int, continueOnError bool, outputEbuTtD bool, debug bool) error {
 	// run folder scan
 	stlFiles, err := filehandler.FolderScan(in_folder, "*."+STL_EXT)
 	if err != nil {
@@ -72,7 +87,7 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 		outputfilepath := filepath.Join(out_folder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
 		move_to_filepath := filepath.Join(move_to, afile)
 		fmt.Println(outputfilepath)
-		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, debug)
+		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, outputEbuTtD, debug)
 		if err != nil {
 			if continueOnError {
 				fmt.Printf("Encountered an error processing %s, error %s\n", sourcefilepath, err.Error())
@@ -93,7 +108,7 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 	return nil
 }
 
-func processFolder(in_folder string, out_folder string, move_to string, offsetSeconds int, continuousScanInterval int, debug bool) error {
+func processFolder(in_folder string, out_folder string, move_to string, offsetSeconds int, continuousScanInterval int, outputEbuTtD bool, debug bool) error {
 	// check source folder exists
 	if !filehandler.DoesFileExist(in_folder) {
 		return errors.New("source folder does not exist")
@@ -118,13 +133,13 @@ func processFolder(in_folder string, out_folder string, move_to string, offsetSe
 	}
 
 	if continuousScanInterval < 1 {
-		return folderScan(in_folder, out_folder, "", offsetSeconds, false, debug)
+		return folderScan(in_folder, out_folder, "", offsetSeconds, false, outputEbuTtD, debug)
 	}
 
 	// continuous loop
 	for {
 		fmt.Printf("Scanning folder %s\n", in_folder)
-		err := folderScan(in_folder, out_folder, move_to, offsetSeconds, true, debug)
+		err := folderScan(in_folder, out_folder, move_to, offsetSeconds, true, outputEbuTtD, debug)
 		if err != nil {
 			fmt.Println("processFolder caught error " + err.Error())
 		}
@@ -141,10 +156,12 @@ func main() {
 	offsetSeconds := 0
 	continuousScanInterval := 0
 	debug := false
+	outputEbuTtD := false
 	flag.StringVar(&mode, "mode", "single", "processing mode; single, folder, edit, split")
 	flag.IntVar(&offsetSeconds, "offsetSeconds", 0, "If set, will offset all Cues by this number of seconds, e.g. -36000 would change a Cue at 10:00:00:00 to 00:00:00:00")
 	flag.IntVar(&continuousScanInterval, "interval", 0, "If set for folder mode, folder poll with sleep this number of seconds between scans")
 	flag.BoolVar(&debug, "debug", false, "Enables extra debug messages")
+	flag.BoolVar(&outputEbuTtD, "ebuttd", false, "Set to true to output EBU-TT-D compliant subtitles, otherwise output is IMSC1")
 
 	flag.Parse()
 
@@ -159,7 +176,7 @@ func main() {
 		input_file := flag.Args()[0]
 		output_file := flag.Args()[1]
 
-		err := processAfile(input_file, output_file, offsetSeconds, debug)
+		err := processAfile(input_file, output_file, offsetSeconds, outputEbuTtD, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -182,7 +199,7 @@ func main() {
 		input_folder := flag.Args()[0]
 		output_folder := flag.Args()[1]
 
-		err := processFolder(input_folder, output_folder, move_to, offsetSeconds, continuousScanInterval, debug)
+		err := processFolder(input_folder, output_folder, move_to, offsetSeconds, continuousScanInterval, outputEbuTtD, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -194,7 +211,7 @@ func main() {
 		}
 
 		job_file_path := flag.Args()[0]
-		err := subtitleediting.ConformJob(job_file_path)
+		err := subtitleediting.ConformJob(job_file_path, outputEbuTtD)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
@@ -206,7 +223,7 @@ func main() {
 		}
 
 		job_file_path := flag.Args()[0]
-		err := subtitleediting.PartJob(job_file_path)
+		err := subtitleediting.PartJob(job_file_path, outputEbuTtD)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)

@@ -3,6 +3,7 @@ package ttmlgenerate
 import (
 	"bytes"
 	ebustl "ebustl-to-ttml/internal/ebustl"
+	"ebustl-to-ttml/internal/ptr"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
@@ -35,13 +36,13 @@ type RegionStruct struct {
 }
 
 type SpanOrLineBreak struct {
-	IsLineBreak bool
-	IsPadding   bool
-	//PreserveSpace    bool //TODO should I keep this and use for internal padding?
+	IsLineBreak      bool
+	IsPadding        bool
 	BackgroundColour string
 	ForegroundColour string
 	ContentString    string
 	DebugNotes       []string
+	//PreserveSpace    bool //TODO should I keep this and use for internal padding?
 }
 
 func SpanOrLineBreakNew() SpanOrLineBreak {
@@ -88,15 +89,7 @@ func (n *NormalisedPara) TrimSpacesWithBr(input string) string {
 }
 
 func (n *NormalisedPara) ConvertToXML() (string, error) {
-
-	// for _, y := range n.SpansAndBreaks {
-	// 	fmt.Println(">> " + y.ToString() + " <<")
-	// 	// 	fmt.Println(">>> " + y.ContentString + " <<<")
-	// 	// 	fmt.Printf("% x\n", y.ContentString)
-	// 	// 	//fmt.Println(hex.EncodeToString([]byte(y.ContentString)))
-	// }
-
-	res := ""
+	res := "\n"
 	for _, y := range n.SpansAndBreaks {
 		if y.IsLineBreak {
 			res = res + "<br />"
@@ -125,52 +118,10 @@ func DebugPrintByteArrray(byteArry []byte) string {
 func getTtmlDefaultStyle() []TTMLOutStyle {
 	res := []TTMLOutStyle{}
 
-	tTMLFontSize := "18px"
-	tTMLFontFamily := "proportionalSansSerif"
-	aBackgroundColor := "rgba(0,0,0,0)"
-	displayAlign := "center"
-	ttsextent := "100% 33%"
-	ttsorigin := "0% 66%"
-	aTextAlign := "center"
-
-	// backgroundStyle
-	aStyleAttributes := StyleAttributes{
-		TTMLBackgroundColor: &aBackgroundColor,
-		TTMLDisplayAlign:    &displayAlign,
-		TTMLExtent:          &ttsextent,
-		TTMLFontFamily:      &tTMLFontFamily,
-		TTMLFontSize:        &tTMLFontSize,
-		TTMLOrigin:          &ttsorigin,
-		TTMLTextAlign:       &aTextAlign,
-	}
-	var ttmlBackgroundStyle = TTMLOutStyle{TTMLOutHeader: TTMLOutHeader{
-		ID:                     "backgroundStyle",
-		TTMLOutStyleAttributes: ttmlOutStyleAttributesFromStyleAttributes(&aStyleAttributes),
-	}}
-	res = append(res, ttmlBackgroundStyle)
-
-	// speakerStyle
-	bBackgroundColor := "transparent"
-	bTtscolor := "white"
-	bTtstextOutline := "black 1px"
-	bStyleAttributes := StyleAttributes{
-		TTMLBackgroundColor: &bBackgroundColor,
-		TTMLColor:           &bTtscolor,
-		TTMLTextOutline:     &bTtstextOutline,
-	}
-	var ttmlSpeakerStyle = TTMLOutStyle{TTMLOutHeader: TTMLOutHeader{
-		ID:                     "speakerStyle",
-		Style:                  "backgroundStyle",
-		TTMLOutStyleAttributes: ttmlOutStyleAttributesFromStyleAttributes(&bStyleAttributes),
-	}}
-	res = append(res, ttmlSpeakerStyle)
-
 	// ttmlStyle
-	cTMLFontSize := "80%"
-	cTMLFontFamily := "monospaceSansSerif"
 	cStyleAttributes := StyleAttributes{
-		TTMLFontFamily: &cTMLFontFamily,
-		TTMLFontSize:   &cTMLFontSize,
+		TTMLFontFamily: ptr.String("monospaceSansSerif"),
+		TTMLFontSize:   ptr.String("80%"),
 	}
 	var ttmlTtmlStyle = TTMLOutStyle{TTMLOutHeader: TTMLOutHeader{
 		ID:                     "ttmlStyle",
@@ -178,71 +129,19 @@ func getTtmlDefaultStyle() []TTMLOutStyle {
 	}}
 	res = append(res, ttmlTtmlStyle)
 
-	// textStyle
-	dBackgroundColor := "black"
-	dTtscolor := "white"
-	dTtstextOutline := "none"
-	dStyleAttributes := StyleAttributes{
-		TTMLBackgroundColor: &dBackgroundColor,
-		TTMLColor:           &dTtscolor,
-		TTMLTextOutline:     &dTtstextOutline,
-	}
-	var ttmlTextStyle = TTMLOutStyle{TTMLOutHeader: TTMLOutHeader{
-		ID:                     "textStyle",
-		Style:                  "speakerStyle",
-		TTMLOutStyleAttributes: ttmlOutStyleAttributesFromStyleAttributes(&dStyleAttributes),
-	}}
-	res = append(res, ttmlTextStyle)
-
 	return res
 }
 
 func getTtmlDefaultRegions(debug_region bool) []TTMLOutRegion {
 	res := []TTMLOutRegion{}
 
-	// <region style="backgroundStyle" xml:id="background"></region>
-	region1 := TTMLOutRegion{
-		TTMLOutHeader: TTMLOutHeader{
-			ID:                     "background",
-			Style:                  "backgroundStyle",
-			TTMLOutStyleAttributes: TTMLOutStyleAttributes{},
-		},
-	}
-	res = append(res, region1)
-
-	// <region xml:id="full" tts:extent="100% 100%" tts:origin="0% 0%"></region>
-	region2extent := "100% 100%"
-	region2origin := "0% 0%"
-	region2 := TTMLOutRegion{
-		TTMLOutHeader: TTMLOutHeader{
-			ID: "full",
-			TTMLOutStyleAttributes: TTMLOutStyleAttributes{
-				Extent: &region2extent,
-				Origin: &region2origin,
-			},
-		},
-	}
-	res = append(res, region2)
-
-	// <region style="speakerStyle" xml:id="speaker"></region>
-	region3 := TTMLOutRegion{
-		TTMLOutHeader: TTMLOutHeader{
-			ID:                     "speaker",
-			Style:                  "speakerStyle",
-			TTMLOutStyleAttributes: TTMLOutStyleAttributes{},
-		},
-	}
-	res = append(res, region3)
-
 	if debug_region {
-		regionDebugExtent := "80% 16.67%"
-		regionDebugOrigin := "10% 79.17%"
 		regiondebug := TTMLOutRegion{
 			TTMLOutHeader: TTMLOutHeader{
 				ID: "debug_region",
 				TTMLOutStyleAttributes: TTMLOutStyleAttributes{
-					Extent: &regionDebugExtent,
-					Origin: &regionDebugOrigin,
+					Extent: ptr.String("80% 16.67%"),
+					Origin: ptr.String("10% 79.17%"),
 				},
 			},
 			Comment: "this is only for debugging use",
@@ -524,25 +423,24 @@ func getSubtitle(tti ebustl.Tti, codepage string, addId bool, configuration Ttml
 	region := "region." + strconv.Itoa(int(tti.VerticalPosition)) + "." + strconv.Itoa(rows) + "." + strconv.Itoa(left_pad) + "." + strconv.Itoa(char_count)
 
 	ttsTextAlign := "left" // none is covered here (tti.JustificationCode == 0) too
-	if tti.JustificationCode == 1 {
+	switch tti.JustificationCode {
+	case 1:
 		ttsTextAlign = "left"
-	} else if tti.JustificationCode == 2 {
+	case 2:
 		ttsTextAlign = "center"
-	} else if tti.JustificationCode == 3 {
+	case 3:
 		ttsTextAlign = "right"
 	}
 
-	ttsFontSize := "200%"
-	ttsLineHeight := "120%"
 	res := TTMLOutSubtitle{
 		Region: region,
 		Begin:  FramesToTcMs(int64(tti.TimeCodeInFrames)),
 		End:    FramesToTcMs(int64(tti.TimeCodeOutFrames)),
 		Text:   sub_para,
 		TTMLOutStyleAttributes: TTMLOutStyleAttributes{
-			FontSize:   &ttsFontSize,
-			LineHeight: &ttsLineHeight,
 			TextAlign:  &ttsTextAlign,
+			FontSize:   ptr.String("200%"),
+			LineHeight: ptr.String("120%"),
 		},
 	}
 	if addId {
@@ -651,8 +549,8 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 		res.debugShuffleTimeCodes()
 	}
 
-	//	barrayRes, err := xml.MarshalIndent(res, "", "   ")
-	barrayRes, err := xml.Marshal(res)
+	barrayRes, err := xml.MarshalIndent(res, "", "   ")
+	//barrayRes, err := xml.Marshal(res)
 
 	barrayRes = []byte(xml.Header + string(barrayRes))
 
