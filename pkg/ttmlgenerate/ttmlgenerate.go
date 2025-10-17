@@ -2,12 +2,14 @@ package ttmlgenerate
 
 import (
 	"bytes"
-	ebustl "ebustl-to-ttml/internal/ebustl"
 	"ebustl-to-ttml/internal/ptr"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -540,7 +542,7 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *TtmlConvertConfigurat
 	}
 
 	//create the regions used
-	for region_id := range regions {
+	for _, region_id := range slices.Sorted(maps.Keys(regions)) {
 		res.Head.Regions = append(res.Head.Regions, getTtmlRegions(region_id))
 	}
 

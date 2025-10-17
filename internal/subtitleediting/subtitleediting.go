@@ -1,10 +1,10 @@
 package subtitleediting
 
 import (
-	ebustl "ebustl-to-ttml/internal/ebustl"
-	"ebustl-to-ttml/internal/ebuttdgenerate"
 	"ebustl-to-ttml/internal/filehandler"
-	"ebustl-to-ttml/internal/ttmlgenerate"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
+	"ebustl-to-ttml/pkg/ebuttdgenerate"
+	"ebustl-to-ttml/pkg/ttmlgenerate"
 	"fmt"
 )
 

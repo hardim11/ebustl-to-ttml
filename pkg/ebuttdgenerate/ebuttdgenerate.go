@@ -2,12 +2,14 @@ package ebuttdgenerate
 
 import (
 	"bytes"
-	ebustl "ebustl-to-ttml/internal/ebustl"
 	"ebustl-to-ttml/internal/ptr"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -610,12 +612,13 @@ func CreateTtml(stl ebustl.EbuStl, comment string, config *EbuTtDConvertConfigur
 	}
 
 	//create the regions used
-	for region_id := range regions {
+	for _, region_id := range slices.Sorted(maps.Keys(regions)) {
 		res.Head.Regions = append(res.Head.Regions, getEbuTtDRegions(region_id))
 	}
 
 	// do styles
-	for style_id := range styles {
+	//	for style_id := range styles {
+	for _, style_id := range slices.Sorted(maps.Keys(styles)) {
 		// add the style to the head
 		style, err := getEbuTtDStles(style_id)
 		if err != nil {
