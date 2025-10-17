@@ -1,8 +1,8 @@
 package ebuttdgenerate
 
 import (
-	ebustl "ebustl-to-ttml/internal/ebustl"
 	"ebustl-to-ttml/internal/filehandler"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
 	"fmt"
 	"os"
 	"testing"

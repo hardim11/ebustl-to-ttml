@@ -1,10 +1,10 @@
 package main
 
 import (
-	ebustl "ebustl-to-ttml/internal/ebustl"
-	"ebustl-to-ttml/internal/ebuttdgenerate"
 	filehandler "ebustl-to-ttml/internal/filehandler"
-	ttmlgenerate "ebustl-to-ttml/internal/ttmlgenerate"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
+	"ebustl-to-ttml/pkg/ebuttdgenerate"
+	ttmlgenerate "ebustl-to-ttml/pkg/ttmlgenerate"
 	"errors"
 	"fmt"
 	"log"

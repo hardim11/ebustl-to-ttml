@@ -1,11 +1,11 @@
 package main
 
 import (
-	ebustl "ebustl-to-ttml/internal/ebustl"
-	"ebustl-to-ttml/internal/ebuttdgenerate"
 	filehandler "ebustl-to-ttml/internal/filehandler"
 	subtitleediting "ebustl-to-ttml/internal/subtitleediting"
-	ttmlgenerate "ebustl-to-ttml/internal/ttmlgenerate"
+	ebustl "ebustl-to-ttml/pkg/ebustl"
+	"ebustl-to-ttml/pkg/ebuttdgenerate"
+	ttmlgenerate "ebustl-to-ttml/pkg/ttmlgenerate"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,7 +17,7 @@ import (
 
 const STL_EXT = "stl"
 
-func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds int, outputEbuTtD bool, debug bool) error {
+func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds int, outputEbuTtD bool, comment string, debug bool) error {
 	fmt.Println("=============================================================")
 	fmt.Println("=== Processing " + sourcefilepath + " ===")
 	stl, err := ebustl.ReadStlFile(sourcefilepath)
@@ -33,8 +33,8 @@ func processAfile(sourcefilepath string, outputfilepath string, offsetSeconds in
 
 	fmt.Printf("number of ttis = %d\n", len(stl.Ttis))
 	fmt.Printf("number of subtitles = %d\n", stl.Gsi.TotalNumberTtiBlocksInt)
-	currentTime := time.Now()
-	comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
+	//currentTime := time.Now()
+	//comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
 
 	outputstring := ""
 
@@ -87,7 +87,10 @@ func folderScan(in_folder string, out_folder string, move_to string, offsetSecon
 		outputfilepath := filepath.Join(out_folder, strings.Replace(afile, oldFileExtension, ".ttml", 1))
 		move_to_filepath := filepath.Join(move_to, afile)
 		fmt.Println(outputfilepath)
-		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, outputEbuTtD, debug)
+		currentTime := time.Now()
+		comment := "\nMatt's Golang app, \nsource file=" + sourcefilepath + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
+
+		err := processAfile(sourcefilepath, outputfilepath, offsetSeconds, outputEbuTtD, comment, debug)
 		if err != nil {
 			if continueOnError {
 				fmt.Printf("Encountered an error processing %s, error %s\n", sourcefilepath, err.Error())
@@ -176,7 +179,10 @@ func main() {
 		input_file := flag.Args()[0]
 		output_file := flag.Args()[1]
 
-		err := processAfile(input_file, output_file, offsetSeconds, outputEbuTtD, debug)
+		currentTime := time.Now()
+		comment := "\nMatt's Golang app, \nsource file=" + input_file + "\nat " + currentTime.String() + "\nHostname: " + getHostname() + "\n"
+
+		err := processAfile(input_file, output_file, offsetSeconds, outputEbuTtD, comment, debug)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)

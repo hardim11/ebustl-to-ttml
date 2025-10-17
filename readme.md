@@ -236,6 +236,10 @@ Similar to the split mode, you run a conform job by pointing the CLI at the JSON
 * 1.2.0 
     * added EBU-TT-D output compliant option
     *  removed unusued styles and regions from ISMC1 version
+* 1.2.1 
+    * moved some packages to pkg from internal
+    * sorting regions and styles
+    * requires go 1.23
 
 ## Credits
 * as well are copying and editing [Quentin Renard's go-astisub project](https://github.com/asticode/go-astisub)
